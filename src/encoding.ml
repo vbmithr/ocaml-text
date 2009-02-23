@@ -295,7 +295,7 @@ let get name = match lookup name with
   | None -> raise Not_found
 
 let _ =
-  List.iter
-    (fun (real_name, hard_name, decoding_table) ->
-       _register real_name hard_name (lazy(of_decoding_table real_name decoding_table)))
-    Encodings_generated.encodings
+  List.iter begin fun (real_name, hard_name, marshaled_table) ->
+    _register real_name hard_name
+      (lazy(of_decoding_table real_name (Marshal.from_string marshaled_table 0)))
+  end Marshaled_encodings_generated.encodings

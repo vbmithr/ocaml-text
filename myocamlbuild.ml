@@ -64,6 +64,8 @@ let _ =
         Options.ocamldoc := ocamlfind "ocamldoc"
 
     | After_rules ->
+        Pathname.define_context "tools" [ "src" ];
+
         define_lib ~dir:"src" "encoding";
 
         (* Generation of encodings and aliases. This is only needed
@@ -75,6 +77,12 @@ let _ =
             (fun _ _ -> Seq[Cmd(S[A"mkdir"; A"-p"; A"src"]);
                             Cmd(S[A"python"; A tool; A fname])])
         end ["encodings"; "aliases"];
+
+        let tool = "tools/gen_marshaled.byte"
+        and fname = "src/marshaled_encodings_generated.ml" in
+        rule (sprintf "automatic generation of %s" fname) ~dep:tool ~prod:fname
+          (fun _ _ -> Seq[Cmd(S[A"mkdir"; A"-p"; A"src"]);
+                          Cmd(S[A"ocamlrun"; A tool; A fname])]);
 
         (* +-----------------+
            | Ocamlfind stuff |
