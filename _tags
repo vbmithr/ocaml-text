@@ -1,0 +1,4 @@
+# -*- conf -*-
+<examples/*>: use_encoding
+<examples/lwt_*>: pkg_lwt
+<examples/iconv_lwt.*>: pkg_lwt
