@@ -36,7 +36,7 @@ val normalize : name -> name
 
       {[
         normalize "  UTF-8  " = "utf-8"
-        normalize "_a_,@b%" = "a_b"
+        normalize "_a_%b$" = "a_b"
       ]}
   *)
 
@@ -47,17 +47,22 @@ val normalize : name -> name
     operations are written using continuation-passing-style. *)
 
 type 'a put_char = char -> (unit -> 'a) -> 'a
-  (** Type of a put_char function. It output the given character then
-      call the given continuation. *)
+  (** Type of a put_char function. It outputs the given character,
+      then call the given continuation. *)
 
 type 'a get_char = (char -> 'a) -> 'a
-  (** Type of a get_char function. It consume one character from the
+  (** Type of a get_char function. It consumes one character from the
       input and pass it to the continuation. *)
 
 (** Type of an encoding *)
 type t = {
   name : name;
   (** Name of the encoding *)
+
+  min_size : int;
+  max_size : int;
+  (** Minimum and maximum size taken by an encoded code point. This is
+      used for optimization purpose. *)
 
   encode : 'a. (unit -> 'a) -> (exn -> 'a) -> 'a put_char -> int -> 'a;
   (** [encode k fail put_char code] musts encode one character then
@@ -77,7 +82,9 @@ type t = {
 }
 
 val name : t -> name
-  (** [name enc] returns the [name] of [enc] *)
+val min_size : t -> int
+val max_size : t -> int
+  (** Projections *)
 
 val encode : t -> (char -> unit) -> int -> unit
   (** [encode enc put_char code] is a short-hand for:

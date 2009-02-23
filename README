@@ -8,7 +8,8 @@ url: https://forge.ocamlcore.org/projects/encoding/
 * What it is ?
 
 Encoding is a small library which deals with character encodings. It
-allow you to encode/decode/recode from/to any input/output type.
+allow you to encode/decode/recode from/to any input/output type and to
+easily manipulate encoded strings.
 
 Its main goal is to make the usage of character encoding in ocaml
 painless.

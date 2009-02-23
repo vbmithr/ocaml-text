@@ -17,7 +17,7 @@ let decode enc get_char =
   enc.decode return fail (fun f -> get_char () >>= f)
 
 let output enc oc code =
-  enc.encode return fail (fun ch f -> Lwt_chan.output_char oc >>= f) code
+  enc.encode return fail (fun ch f -> Lwt_chan.output_char oc ch >>= f) code
 
 let input enc ic =
   enc.decode return fail (fun f -> Lwt_chan.input_char ic >>= f)

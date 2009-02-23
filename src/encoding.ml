@@ -35,6 +35,8 @@ let cannot_decode name byte = Cannot_decode(sprintf "'%s' cannot decode byte 0x%
 
 type t = {
   name : name;
+  min_size : int;
+  max_size : int;
   encode : 'a. (unit -> 'a) -> (exn -> 'a) -> 'a put_char -> int -> 'a;
   decode : 'a. (int -> 'a) -> (exn -> 'a) -> 'a get_char -> 'a;
 }
@@ -42,6 +44,8 @@ type t = {
 external identity : 'a -> 'a = "%identity"
 
 let name enc = enc.name
+let min_size enc = enc.min_size
+let max_size enc = enc.max_size
 let encode enc put_char code = enc.encode identity raise (fun ch f -> put_char ch; f ()) code
 let decode enc get_char = enc.decode identity raise (fun f -> f (get_char ()))
 
@@ -51,6 +55,8 @@ let of_decoding_table ~name ~table =
   else
     let encoding_table = Encoding_table.of_decoding_table table in
     { name = name;
+      min_size = 1;
+      max_size = 1;
       encode = (fun k fail put code ->
                   match Encoding_table.lookup code encoding_table with
                     | None ->
@@ -97,14 +103,14 @@ let next_char pos str =
   end
 
 let recode ?fallback ~src ~dst str =
-  let pos = ref 0 and buf = Buffer.create (String.length str) in
+  let pos = ref 0 and buf = Buffer.create (String.length str * dst.min_size / src.min_size) in
   begin match fallback with
     | None ->
         while !pos < String.length str do
           encode dst (Buffer.add_char buf) (decode src (fun _ -> next_char pos str))
         done
     | Some fallback ->
-        let tmp = Buffer.create 8 in
+        let tmp = Buffer.create dst.max_size in
         while !pos < String.length str do
           let code = decode src (fun _ -> next_char pos str) in
           Buffer.clear tmp;
@@ -124,6 +130,8 @@ let recode ?fallback ~src ~dst str =
 
 let ascii = {
   name = "ascii";
+  min_size = 1;
+  max_size = 1;
   encode = (fun k fail put code ->
               if code >= 0 && code <= 127 then
                 put (Char.unsafe_chr code) k
@@ -140,6 +148,8 @@ let ascii = {
 
 let latin1 = {
   name = "iso8859-1";
+  min_size = 1;
+  max_size = 1;
   encode = (fun k fail put code ->
               if code >= 0 && code <= 255 then
                 put (Char.unsafe_chr code) k
@@ -150,6 +160,8 @@ let latin1 = {
 
 let utf8 = {
   name = "utf-8";
+  min_size = 1;
+  max_size = 4;
   encode = (fun k fail put code ->
               let put x k = put (Char.unsafe_chr x) k in
               if code < 0 then
