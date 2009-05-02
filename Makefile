@@ -5,23 +5,14 @@
 #
 # This file is a part of encoding.
 
-ifeq ($(TERM),dumb)
 OC = ocamlbuild -classic-display
-else
-OC = ocamlbuild
-endif
 OF = ocamlfind
 
 NAME = encoding
-PUBLIC = encoding encoding_table enc_string enc_utf8
 
 .PHONY: all
 all:
 	$(OC) META $(NAME).cma $(NAME).cmxa
-
-.PHONY: examples
-examples:
-	$(OC) examples/iconv.native examples/iconv_lwt.native
 
 .PHONY: doc
 doc:
@@ -34,15 +25,21 @@ dist:
 .PHONY: install
 install:
 	$(OF) install $(NAME) _build/META \
-	  ${PUBLIC:%=_build/src/%.mli} \
-	  ${PUBLIC:%=_build/src/%.cmi} \
+	  _build/src/*.mli \
+	  _build/src/*.cmi \
 	  _build/src/*.cmx \
+	  _build/src/*.a \
+	  _build/src/*.so \
 	  _build/$(NAME).cma \
-	  _build/$(NAME).cmxa
+	  _build/$(NAME).cmxa \
+	  _build/$(NAME).a
 
 .PHONY: uninstall
 uninstall:
 	$(OF) remove $(NAME)
+
+.PHONY: reinstall
+reinstall: uninstall install
 
 .PHONY: clean
 clean:

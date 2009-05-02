@@ -1,7 +1,7 @@
 # -*- conf -*-
 name = "encoding"
 version = "@VERSION@"
-browse_interfaces = "Encoding Encoding_table Enc_string Enc_utf8"
-description = "Encoding/decoding of unicode code-point"
+browse_interfaces = "Encoding Text"
+description = "Character encodings and UTF-8 text manipulation"
 archive(byte) = "encoding.cma"
 archive(native) = "encoding.cmxa"

@@ -7,22 +7,16 @@ url: https://forge.ocamlcore.org/projects/encoding/
 
 * What it is ?
 
-Encoding is a small library which deals with character encodings. It
-allow you to encode/decode/recode from/to any input/output type and to
-easily manipulate encoded strings.
+Encoding is a small library which deals with character encodings and
+UTF-8 encoded strings manipulation.
 
-Its main goal is to make the usage of character encoding in ocaml
-painless.
-
-* What it is not ?
-
-It is not a full unicode library like camomile, it only focus on being
-light, simple and generic.
+It focus on being simple and compatible with other ocaml libraries. It
+defines no new types for strings or characters, it uses only regular
+strings.
 
 * Requirement
 
 Encoding needs only ocaml. It has been written/tested with ocaml 3.11.
-If you got the development version, you also need python.
 
 * Building and installation
 
@@ -32,12 +26,6 @@ To build and install it just type:
   $ make install
 
 This will install the "encoding" package (ocamlfind is required).
-
-To build examples, type:
-
-  $ make examples
-
-For the iconv_lwt example you need the lwt library.
 
 * Development
 

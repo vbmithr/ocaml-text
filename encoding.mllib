@@ -1,6 +1,2 @@
 src/Encoding
-src/Encoding_table
-src/Enc_string
-src/Enc_utf8
-src/Marshaled_encodings_generated
-src/Aliases_generated
+src/Text
