@@ -153,7 +153,7 @@ let pointer_at txt idx =
 let position ptr =
   let count = ref 0 in
   for i = 0 to ptr.ofs - 1 do
-    if byte ptr.txt i land 0x0c <> 0x80 then incr count
+    if byte ptr.txt i land 0xc0 <> 0x80 then incr count
   done;
   !count
 
@@ -177,7 +177,7 @@ let equal_at ptr sub =
 let length t =
   let len = ref 0 in
   for i = 0 to String.length t - 1 do
-    if byte t i land 0x0c <> 0x80 then incr len
+    if byte t i land 0xc0 <> 0x80 then incr len
   done;
   !len
 
