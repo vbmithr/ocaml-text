@@ -32,9 +32,9 @@ let _ =
     | After_rules ->
 
         (* C stubs: *)
-        dep ["link"; "ocaml"; "use_libiconv"] ["src/libiconv_stubs.a"];
-        flag ["link"; "library"; "ocaml"; "use_libiconv"] & S[A"-cclib"; A"-liconv_stubs"];
-        flag ["link"; "library"; "ocaml"; "byte"; "use_libiconv"] & S[A"-dllib"; A"-liconv_stubs"];
+        dep ["link"; "ocaml"; "use_libtext"] ["src/libtext_stubs.a"];
+        flag ["link"; "library"; "ocaml"; "use_libtext"] & S[A"-cclib"; A"-ltext_stubs"];
+        flag ["link"; "library"; "ocaml"; "byte"; "use_libtext"] & S[A"-dllib"; A"-ltext_stubs"];
 
         (* Generation of "META" *)
         rule "META" ~deps:["META.in"; "VERSION"] ~prod:"META"

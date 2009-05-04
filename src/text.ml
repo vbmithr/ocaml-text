@@ -4,7 +4,7 @@
  * Copyright : (c) 2009, Jeremie Dimino <jeremie@dimino.org>
  * Licence   : BSD3
  *
- * This file is a part of encoding.
+ * This file is a part of ocaml-text.
  *)
 
 type t = string
@@ -573,18 +573,18 @@ let lchop = function
    | Character class |
    +-----------------+ *)
 
-external ml_is_alnum : int -> bool = "ml_encoding_is_alnum"
-external ml_is_alpha : int -> bool = "ml_encoding_is_alpha"
-external ml_is_blank : int -> bool = "ml_encoding_is_blank"
-external ml_is_cntrl : int -> bool = "ml_encoding_is_cntrl"
-external ml_is_digit : int -> bool = "ml_encoding_is_digit"
-external ml_is_graph : int -> bool = "ml_encoding_is_graph"
-external ml_is_lower : int -> bool = "ml_encoding_is_lower"
-external ml_is_print : int -> bool = "ml_encoding_is_print"
-external ml_is_punct : int -> bool = "ml_encoding_is_punct"
-external ml_is_space : int -> bool = "ml_encoding_is_space"
-external ml_is_upper : int -> bool = "ml_encoding_is_upper"
-external ml_is_digit : int -> bool = "ml_encoding_is_digit"
+external ml_is_alnum : int -> bool = "ml_text_is_alnum"
+external ml_is_alpha : int -> bool = "ml_text_is_alpha"
+external ml_is_blank : int -> bool = "ml_text_is_blank"
+external ml_is_cntrl : int -> bool = "ml_text_is_cntrl"
+external ml_is_digit : int -> bool = "ml_text_is_digit"
+external ml_is_graph : int -> bool = "ml_text_is_graph"
+external ml_is_lower : int -> bool = "ml_text_is_lower"
+external ml_is_print : int -> bool = "ml_text_is_print"
+external ml_is_punct : int -> bool = "ml_text_is_punct"
+external ml_is_space : int -> bool = "ml_text_is_space"
+external ml_is_upper : int -> bool = "ml_text_is_upper"
+external ml_is_digit : int -> bool = "ml_text_is_digit"
 
 let for_all_code f txt = for_all (fun ch -> f (code ch)) txt
 
@@ -614,8 +614,8 @@ let is_digit = for_all_code ml_is_digit
 
 let map_code f txt = map (fun ch -> char (f (code ch))) txt
 
-external ml_upper : int -> int = "ml_encoding_upper"
-external ml_lower : int -> int = "ml_encoding_lower"
+external ml_upper : int -> int = "ml_text_upper"
+external ml_lower : int -> int = "ml_text_lower"
 
 let upper = map_code ml_upper
 let lower = map_code ml_lower
@@ -634,7 +634,7 @@ let uncapitalize = map_first_code ml_lower
    | Comparison |
    +------------+ *)
 
-external ml_compare : string -> string -> int = "ml_encoding_compare"
+external ml_compare : string -> string -> int = "ml_text_compare"
 
 let compare t1 t2 = ml_compare (encode t1) (encode t2)
 let icompare t1 t2 = ml_compare (encode (lower t1)) (encode (lower t2))

@@ -1,10 +1,10 @@
 /*
- * ml_iconv.c
- * ----------
+ * ml_text.c
+ * ---------
  * Copyright : (c) 2009, Jeremie Dimino <jeremie@dimino.org>
  * Licence   : BSD3
  *
- * This file is a part of encoding.
+ * This file is a part of ocaml-text.
  */
 
 #define _ISOC99_SOURCE
@@ -173,15 +173,15 @@ CAMLprim value ml_iconv_encode(value cd_val, value buf_val, value pos_val, value
    | Character utilities |
    +---------------------+ */
 
-value ml_encoding_upper(value ch) {
+value ml_text_upper(value ch) {
   return Val_int(towupper(Int_val(ch)));
 }
 
-value ml_encoding_lower(value ch) {
+value ml_text_lower(value ch) {
   return Val_int(towlower(Int_val(ch)));
 }
 
-#define IS(name) value ml_encoding_is_##name(value ch) { return Val_bool(isw##name(Int_val(ch))); }
+#define IS(name) value ml_text_is_##name(value ch) { return Val_bool(isw##name(Int_val(ch))); }
 
 IS(alnum)
 IS(alpha)
@@ -199,7 +199,7 @@ IS(upper)
    | Text comparison |
    +-----------------+ */
 
-CAMLprim value ml_encoding_compare(value s1, value s2) {
+CAMLprim value ml_text_compare(value s1, value s2) {
   CAMLparam2(s1, s2);
   int res = strcoll(String_val(s1), String_val(s2));
   if (res < 0)

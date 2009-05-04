@@ -8,7 +8,7 @@
 OC = ocamlbuild -classic-display
 OF = ocamlfind
 
-NAME = encoding
+NAME = text
 
 .PHONY: all
 all:

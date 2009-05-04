@@ -1,10 +1,10 @@
 (*
- * iconv.ml
- * --------
+ * encoding.ml
+ * -----------
  * Copyright : (c) 2009, Jeremie Dimino <jeremie@dimino.org>
  * Licence   : BSD3
  *
- * This file is a part of encoding.
+ * This file is a part of ocaml-text.
  *)
 
 type t = string

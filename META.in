@@ -1,7 +1,7 @@
 # -*- conf -*-
-name = "encoding"
+name = "text"
 version = "@VERSION@"
-browse_interfaces = "Encoding Text"
+browse_interfaces = "Text Encoding"
 description = "Character encodings and UTF-8 text manipulation"
-archive(byte) = "encoding.cma"
-archive(native) = "encoding.cmxa"
+archive(byte) = "text.cma"
+archive(native) = "text.cmxa"

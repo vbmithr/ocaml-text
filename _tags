@@ -1,2 +1,2 @@
 # -*- conf -*-
-<encoding.*>: use_libiconv
+<text.*>: use_libtext
