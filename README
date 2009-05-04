@@ -1,22 +1,27 @@
-                               Encoding
+                              OCaml-Text
 
                  Jeremie Dimino <jeremie@dimino.org>
                             February 2009
 
-url: https://forge.ocamlcore.org/projects/encoding/
+url: https://forge.ocamlcore.org/projects/ocaml-text/
 
 * What it is ?
 
-Encoding is a small library which deals with character encodings and
-UTF-8 encoded strings manipulation.
+OCaml-Text is a library for dealing with ``text'', i.e. sequence of
+unicode characters, in a convenient way
 
-It focus on being simple and compatible with other ocaml libraries. It
-defines no new types for strings or characters, it uses only regular
-strings.
+It supports:
+
+  - character encoding/decoding using iconv
+  - manipulation of text as UTF-8 encoded strings
+  - localised text functions such as compare, upper, ...
+
+In order to be the compatible with other ocaml library without pain,
+OCaml-Text choose to use only regular strings for dealing with text.
 
 * Requirement
 
-Encoding needs only ocaml. It has been written/tested with ocaml 3.11.
+OCaml-Text needs only ocaml. It has been written/tested with ocaml 3.11.
 
 * Building and installation
 
@@ -25,14 +30,14 @@ To build and install it just type:
   $ make all
   $ make install
 
-This will install the "encoding" package (ocamlfind is required).
+This will install the "text" package (ocamlfind is required).
 
 * Development
 
-The last development version of encoding can always be found in the
+The last development version of ocaml-text can always be found in the
 darcs repository hosted at darcs.ocamlcore.org:
 
-  $ darcs get http://darcs.ocamlcore.org/repos/encoding/encoding
+  $ darcs get http://darcs.ocamlcore.org/repos/ocaml-text/ocaml-text
 
 local variables:
 mode: outline
