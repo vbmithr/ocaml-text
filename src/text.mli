@@ -47,6 +47,10 @@ val decode : ?encoding : Encoding.t -> string -> t
   (** [decode ?encoding str] decode the given string encoded in
       [encoding], which defaults to {!Encoding.system} *)
 
+val to_ascii : t -> t
+  (** [to_ascii txt] returns an approximative ascii version of
+      [txt]. This is the same as [encode ~encoding:"ASCII//TRANSLIT" txt] *)
+
 (** {6 Informations} *)
 
 val length : t -> int

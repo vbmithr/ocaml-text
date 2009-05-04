@@ -66,6 +66,8 @@ let validate str = match check str with
 let encode ?fallback ?(encoding=Encoding.system) txt = Encoding.recode_string ?fallback ~src:"UTF-8" ~dst:encoding txt
 let decode ?(encoding=Encoding.system) txt = Encoding.recode_string ~src:encoding ~dst:"UTF-8" txt
 
+let to_ascii txt = encode ~encoding:"ASCII//TRANSLIT" txt
+
 (* +----------+
    | Pointers |
    +----------+ *)
