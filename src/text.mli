@@ -305,7 +305,8 @@ val count : (t -> bool) -> t -> int
 (** {6 Splitting} *)
 
 val words : t -> t list
-  (** Returns all words of the given text *)
+  (** Returns all words of the given text. Words are sequence of
+      non-space and non-punct characters. *)
 
 val split : ?max : int -> ?sep : t -> t -> t list
   (** [split ?max ?sep text] split [text] according to [sep]. If [max]

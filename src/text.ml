@@ -377,28 +377,70 @@ let count f txt =
   iter (fun ch -> if f ch then incr c) txt;
   !c
 
-let words txt =
-  let len = String.length txt in
-  let rec loop ofs =
-    if ofs = len then
-      []
-    else
-      match txt.[ofs] with
-        | '\r' | '\n' | '\t' | ' ' ->
-            loop (ofs + 1)
-        | _ ->
-            loop_word ofs (ofs_next txt (ofs + 1) len)
-  and loop_word ofs_start ofs =
-    if ofs = len then
-      [String.sub txt ofs_start (ofs - ofs_start)]
-    else
-      match txt.[ofs] with
-        | '\r' | '\n' | '\t' | ' ' ->
-            String.sub txt ofs_start (ofs - ofs_start) :: loop (ofs + 1)
-        | _ ->
-            loop_word ofs_start (ofs_next txt (ofs + 1) len)
+(* +-----------------+
+   | Character class |
+   +-----------------+ *)
+
+external ml_is_alnum : int -> bool = "ml_text_is_alnum"
+external ml_is_alpha : int -> bool = "ml_text_is_alpha"
+external ml_is_blank : int -> bool = "ml_text_is_blank"
+external ml_is_cntrl : int -> bool = "ml_text_is_cntrl"
+external ml_is_digit : int -> bool = "ml_text_is_digit"
+external ml_is_graph : int -> bool = "ml_text_is_graph"
+external ml_is_lower : int -> bool = "ml_text_is_lower"
+external ml_is_print : int -> bool = "ml_text_is_print"
+external ml_is_punct : int -> bool = "ml_text_is_punct"
+external ml_is_space : int -> bool = "ml_text_is_space"
+external ml_is_upper : int -> bool = "ml_text_is_upper"
+external ml_is_digit : int -> bool = "ml_text_is_digit"
+
+let for_all_code f txt = for_all (fun ch -> f (code ch)) txt
+
+let is_ascii s =
+  let rec loop = function
+    | -1 -> true
+    | i -> byte s i < 128 && loop (i - 1)
   in
-  loop 0
+  loop (String.length s - 1)
+
+let is_alnum = for_all_code ml_is_alnum
+let is_alpha = for_all_code ml_is_alpha
+let is_blank = for_all_code ml_is_blank
+let is_cntrl = for_all_code ml_is_cntrl
+let is_digit = for_all_code ml_is_digit
+let is_graph = for_all_code ml_is_graph
+let is_lower = for_all_code ml_is_lower
+let is_print = for_all_code ml_is_print
+let is_punct = for_all_code ml_is_punct
+let is_space = for_all_code ml_is_space
+let is_upper = for_all_code ml_is_upper
+let is_digit = for_all_code ml_is_digit
+
+(* +---------------------------+
+   | Searching, Splitting, ... |
+   +---------------------------+ *)
+
+let words txt =
+  let rec loop ptr =
+    match next ptr with
+      | Some(ch, ptr') ->
+          if is_punct ch || is_space ch then
+            loop ptr'
+          else
+            loop_word ptr ptr'
+      | None ->
+          []
+  and loop_word ptr_start ptr =
+    match next ptr with
+      | Some(ch, ptr') ->
+          if is_punct ch || is_space ch then
+            chunk ptr_start ptr :: loop ptr'
+          else
+            loop_word ptr_start ptr'
+      | None ->
+          [chunk ptr_start ptr]
+  in
+  loop (pointer_l txt)
 
 let split ?(max=max_int) ?(sep=" ") txt =
   let len = String.length txt and sep_len = String.length sep in
@@ -568,45 +610,6 @@ let lchop = function
       let len = String.length txt in
       let ofs = ofs_next txt 1 len in
       unsafe_sub txt ofs (len - ofs)
-
-(* +-----------------+
-   | Character class |
-   +-----------------+ *)
-
-external ml_is_alnum : int -> bool = "ml_text_is_alnum"
-external ml_is_alpha : int -> bool = "ml_text_is_alpha"
-external ml_is_blank : int -> bool = "ml_text_is_blank"
-external ml_is_cntrl : int -> bool = "ml_text_is_cntrl"
-external ml_is_digit : int -> bool = "ml_text_is_digit"
-external ml_is_graph : int -> bool = "ml_text_is_graph"
-external ml_is_lower : int -> bool = "ml_text_is_lower"
-external ml_is_print : int -> bool = "ml_text_is_print"
-external ml_is_punct : int -> bool = "ml_text_is_punct"
-external ml_is_space : int -> bool = "ml_text_is_space"
-external ml_is_upper : int -> bool = "ml_text_is_upper"
-external ml_is_digit : int -> bool = "ml_text_is_digit"
-
-let for_all_code f txt = for_all (fun ch -> f (code ch)) txt
-
-let is_ascii s =
-  let rec loop = function
-    | -1 -> true
-    | i -> byte s i < 128 && loop (i - 1)
-  in
-  loop (String.length s - 1)
-
-let is_alnum = for_all_code ml_is_alnum
-let is_alpha = for_all_code ml_is_alpha
-let is_blank = for_all_code ml_is_blank
-let is_cntrl = for_all_code ml_is_cntrl
-let is_digit = for_all_code ml_is_digit
-let is_graph = for_all_code ml_is_graph
-let is_lower = for_all_code ml_is_lower
-let is_print = for_all_code ml_is_print
-let is_punct = for_all_code ml_is_punct
-let is_space = for_all_code ml_is_space
-let is_upper = for_all_code ml_is_upper
-let is_digit = for_all_code ml_is_digit
 
 (* +--------------------+
    | Upper/lower casing |
