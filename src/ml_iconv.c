@@ -7,11 +7,14 @@
  * This file is a part of encoding.
  */
 
+#define _ISOC99_SOURCE
 #include <errno.h>
 #include <iconv.h>
 #include <langinfo.h>
 #include <locale.h>
 #include <string.h>
+#include <strings.h>
+#include <wctype.h>
 
 #include <caml/mlvalues.h>
 #include <caml/alloc.h>
@@ -68,15 +71,11 @@ static struct custom_operations ops = {
 CAMLprim value ml_iconv_init(value unit)
 {
   CAMLparam1(unit);
-  /* Get the current locale of the libc: */
-  char *current = setlocale(LC_CTYPE, NULL);
   /* Set the locale acording to environment variables: */
   setlocale(LC_CTYPE, "");
+  setlocale(LC_COLLATE, "");
   /* Get the codeset used by current locale: */
   char *codeset = nl_langinfo(CODESET);
-  /* Reset the locale, because the programmer may not expect functions
-     of the standard library to returns localised error messages: */
-  setlocale(LC_CTYPE, current);
   /* If the encoding cannot be determined, just use ascii: */
   CAMLreturn(caml_copy_string(codeset ? codeset : "ASCII"));
 }
@@ -168,4 +167,45 @@ CAMLprim value ml_iconv_encode(value cd_val, value buf_val, value pos_val, value
     CAMLreturn(NEED_MORE);
   else
     CAMLreturn(ERROR);
+}
+
+/* +---------------------+
+   | Character utilities |
+   +---------------------+ */
+
+value ml_encoding_upper(value ch) {
+  return Val_int(towupper(Int_val(ch)));
+}
+
+value ml_encoding_lower(value ch) {
+  return Val_int(towlower(Int_val(ch)));
+}
+
+#define IS(name) value ml_encoding_is_##name(value ch) { return Val_bool(isw##name(Int_val(ch))); }
+
+IS(alnum)
+IS(alpha)
+IS(blank)
+IS(cntrl)
+IS(digit)
+IS(graph)
+IS(lower)
+IS(print)
+IS(punct)
+IS(space)
+IS(upper)
+
+/* +-----------------+
+   | Text comparison |
+   +-----------------+ */
+
+CAMLprim value ml_encoding_compare(value s1, value s2) {
+  CAMLparam2(s1, s2);
+  int res = strcoll(String_val(s1), String_val(s2));
+  if (res < 0)
+    CAMLreturn(Val_int(-1));
+  else if (res > 0)
+    CAMLreturn(Val_int(1));
+  else
+    CAMLreturn(Val_int(0));
 }

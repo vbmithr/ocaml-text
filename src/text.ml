@@ -375,41 +375,6 @@ let count f txt =
   iter (fun ch -> if f ch then incr c) txt;
   !c
 
-let str_for_all f s =
-  let rec loop = function
-    | -1 -> true
-    | i -> f (String.unsafe_get s i) && loop (i - 1)
-  in
-  loop (String.length s - 1)
-
-let is_ascii txt =
-  str_for_all (fun ch -> Char.code ch < 128) txt
-
-let is_alpha txt =
-  str_for_all (function
-                 | 'a' .. 'z' | 'A' .. 'Z' -> true
-                 | _ -> false) txt
-
-let is_digit txt =
-  str_for_all (function
-                 | '0' .. '9' -> true
-                 | _ -> false) txt
-
-let is_alnum txt =
-  str_for_all (function
-                 | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' -> true
-                 | _ -> false) txt
-
-let is_blank txt =
-  str_for_all (function
-                 | '\t' | ' ' -> true
-                 | _ -> false) txt
-
-let is_space txt =
-  str_for_all (function
-                 | '\r' | '\n' | '\t' | ' ' -> true
-                 | _ -> false) txt
-
 let words txt =
   let len = String.length txt in
   let rec loop ofs =
@@ -601,3 +566,73 @@ let lchop = function
       let len = String.length txt in
       let ofs = ofs_next txt 1 len in
       unsafe_sub txt ofs (len - ofs)
+
+(* +-----------------+
+   | Character class |
+   +-----------------+ *)
+
+external ml_is_alnum : int -> bool = "ml_encoding_is_alnum"
+external ml_is_alpha : int -> bool = "ml_encoding_is_alpha"
+external ml_is_blank : int -> bool = "ml_encoding_is_blank"
+external ml_is_cntrl : int -> bool = "ml_encoding_is_cntrl"
+external ml_is_digit : int -> bool = "ml_encoding_is_digit"
+external ml_is_graph : int -> bool = "ml_encoding_is_graph"
+external ml_is_lower : int -> bool = "ml_encoding_is_lower"
+external ml_is_print : int -> bool = "ml_encoding_is_print"
+external ml_is_punct : int -> bool = "ml_encoding_is_punct"
+external ml_is_space : int -> bool = "ml_encoding_is_space"
+external ml_is_upper : int -> bool = "ml_encoding_is_upper"
+external ml_is_digit : int -> bool = "ml_encoding_is_digit"
+
+let for_all_code f txt = for_all (fun ch -> f (code ch)) txt
+
+let is_ascii s =
+  let rec loop = function
+    | -1 -> true
+    | i -> byte s i < 128 && loop (i - 1)
+  in
+  loop (String.length s - 1)
+
+let is_alnum = for_all_code ml_is_alnum
+let is_alpha = for_all_code ml_is_alpha
+let is_blank = for_all_code ml_is_blank
+let is_cntrl = for_all_code ml_is_cntrl
+let is_digit = for_all_code ml_is_digit
+let is_graph = for_all_code ml_is_graph
+let is_lower = for_all_code ml_is_lower
+let is_print = for_all_code ml_is_print
+let is_punct = for_all_code ml_is_punct
+let is_space = for_all_code ml_is_space
+let is_upper = for_all_code ml_is_upper
+let is_digit = for_all_code ml_is_digit
+
+(* +--------------------+
+   | Upper/lower casing |
+   +--------------------+ *)
+
+let map_code f txt = map (fun ch -> char (f (code ch))) txt
+
+external ml_upper : int -> int = "ml_encoding_upper"
+external ml_lower : int -> int = "ml_encoding_lower"
+
+let upper = map_code ml_upper
+let lower = map_code ml_lower
+
+let map_first_code f = function
+  | "" -> ""
+  | txt ->
+      let len = String.length txt in
+      let ptr = ofs_next txt 1 len in
+      char (f (code (unsafe_sub txt 0 ptr))) ^ unsafe_sub txt ptr (len - ptr)
+
+let capitalize = map_first_code ml_upper
+let uncapitalize = map_first_code ml_lower
+
+(* +------------+
+   | Comparison |
+   +------------+ *)
+
+external ml_compare : string -> string -> int = "ml_encoding_compare"
+
+let compare t1 t2 = ml_compare (encode t1) (encode t2)
+let icompare t1 t2 = ml_compare (encode (lower t1)) (encode (lower t2))

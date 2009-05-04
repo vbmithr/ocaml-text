@@ -134,6 +134,26 @@ val init : int -> (int -> t) -> t
 val rev_init : int -> (int -> t) -> t
   (** [rev_init n f] returns [f (n - 1) ^ f 1 ^ ... ^ f 0] *)
 
+(** {6 Locale specific functions} *)
+
+val upper : t -> t
+  (** [upper t] returns the upper-cased version of [t]. *)
+
+val lower : t -> t
+  (** [lower t] returns the upper-cased version of [t]. *)
+
+val capitalize : t -> t
+  (** [capitalize t] returns [t] with its first letter upper-cased *)
+
+val uncapitalize : t -> t
+  (** [capitalize t] returns [t] with its first letter lower-cased *)
+
+val compare : t -> t -> int
+  (** Compares two texts according to the current locale *)
+
+val icompare : t -> t -> int
+  (** Compares two texts, case-insensitive *)
+
 (** {6 Transformations} *)
 
 val rev : t -> t
@@ -205,29 +225,22 @@ val rev_implode : t list -> t
 
 (** {6 Tests} *)
 
+(** The following functions tests whether all characters of the given
+    text verify a property: *)
+
 val is_ascii : t -> bool
-  (** [is_ascii t] returns whether all characters of [t] are ascii
-      characters *)
-
-val is_alpha : t -> bool
-  (** [is_alpha t] returns whether all characters of [t] are
-      letters *)
-
-val is_digit : t -> bool
-  (** [is_alpha t] returns whether all characters of [t] are
-      digits *)
-
 val is_alnum : t -> bool
-  (** [is_alpha t] returns whether all characters of [t] are
-      letters or digits *)
-
+val is_alpha : t -> bool
 val is_blank : t -> bool
-  (** [is_blank t] returns whether all characters of [t] are blanks
-      ([" "] or ["\t"]) *)
-
+val is_cntrl : t -> bool
+val is_digit : t -> bool
+val is_graph : t -> bool
+val is_lower : t -> bool
+val is_print : t -> bool
+val is_punct : t -> bool
 val is_space : t -> bool
-  (** [is_space t] returns whether all characters of [t] are spaces
-      (blanks or newline) *)
+val is_upper : t -> bool
+val is_digit : t -> bool
 
 (** {6 Text traversals} *)
 
