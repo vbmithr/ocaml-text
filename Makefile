@@ -10,9 +10,24 @@ OF = ocamlfind
 
 NAME = text
 
+# Check wether native compilation is available:
+ifeq ($(shell $(OF) ocamlopt -version 2> /dev/null),)
+  HAVE_NATIVE = false
+else
+  HAVE_NATIVE = true
+endif
+
+# Common targets:
+TARGETS = META src/$(NAME).cma
+
+ifeq ($(HAVE_NATIVE),true)
+  # Native targets:
+  TARGETS += src/$(NAME).cmxa
+endif
+
 .PHONY: all
 all:
-	$(OC) META $(NAME).cma $(NAME).cmxa
+	$(OC) $(TARGETS)
 
 .PHONY: doc
 doc:
@@ -25,14 +40,13 @@ dist:
 .PHONY: install
 install:
 	$(OF) install $(NAME) _build/META \
-	  _build/src/*.mli \
-	  _build/src/*.cmi \
-	  _build/src/*.cmx \
-	  _build/src/*.a \
-	  _build/src/*.so \
-	  _build/$(NAME).cma \
-	  _build/$(NAME).cmxa \
-	  _build/$(NAME).a
+	  $(wildcard _build/src/*.mli) \
+	  $(wildcard _build/src/*.cmi) \
+	  $(wildcard _build/src/*.cmx) \
+	  $(wildcard _build/src/*.cma) \
+	  $(wildcard _build/src/*.cmxa) \
+	  $(wildcard _build/src/*.so) \
+	  $(wildcard _build/src/*.a)
 
 .PHONY: uninstall
 uninstall:

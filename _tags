@@ -1,2 +1,2 @@
 # -*- conf -*-
-<text.*>: use_libtext
+<src/text.cm{,x}a>: use_libtext
