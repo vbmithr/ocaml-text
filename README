@@ -21,7 +21,7 @@ OCaml-Text choose to use only regular strings for dealing with text.
 
 * Requirement
 
-OCaml-Text needs only ocaml. It has been written/tested with ocaml 3.11.
+OCaml-Text needs ocaml >= 3.11 and libiconv.
 
 * Building and installation
 

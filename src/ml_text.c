@@ -10,17 +10,24 @@
 #define _ISOC99_SOURCE
 #include <errno.h>
 #include <iconv.h>
-#include <langinfo.h>
 #include <locale.h>
 #include <string.h>
 #include <strings.h>
 #include <wctype.h>
+#include <stdio.h>
 
 #include <caml/mlvalues.h>
 #include <caml/alloc.h>
 #include <caml/memory.h>
 #include <caml/custom.h>
 #include <caml/fail.h>
+
+/* There is no nl_langinfo on windows: */
+#ifdef __MINGW32__
+#include <windows.h>
+#else
+#include <langinfo.h>
+#endif
 
 /* define the easiest encoding to use: */
 #ifdef ARCH_BIG_ENDIAN
@@ -30,8 +37,8 @@
 #endif
 
 /* Constant for ocaml constructors: */
-#define NEED_MORE (Val_int(0))
-#define ERROR (Val_int(1))
+#define Val_need_more (Val_int(0))
+#define Val_error (Val_int(1))
 
 /* +------------------------------------+
    | Custom block for iconv descriptors |
@@ -74,10 +81,17 @@ CAMLprim value ml_iconv_init(value unit)
   /* Set the locale acording to environment variables: */
   setlocale(LC_CTYPE, "");
   setlocale(LC_COLLATE, "");
+#ifdef __MINGW32__
+  /* Use codepage on windows */
+  char codeset[128];
+  sprintf(codeset, "CP%d", GetACP());
+  CAMLreturn(caml_copy_string(codeset));
+#else
   /* Get the codeset used by current locale: */
   char *codeset = nl_langinfo(CODESET);
   /* If the encoding cannot be determined, just use ascii: */
   CAMLreturn(caml_copy_string(codeset ? codeset : "ASCII"));
+#endif
 }
 
 /* +----------+
@@ -120,9 +134,9 @@ CAMLprim value ml_iconv_decode(value cd_val, value buf_val, value pos_val, value
     Store_field(result, 1, Val_int(len - in_left));
     CAMLreturn(result);
   } else if (errno == EINVAL)
-    CAMLreturn(NEED_MORE);
+    CAMLreturn(Val_need_more);
   else
-    CAMLreturn(ERROR);
+    CAMLreturn(Val_error);
 }
 
 /* +----------+
@@ -164,9 +178,9 @@ CAMLprim value ml_iconv_encode(value cd_val, value buf_val, value pos_val, value
     Store_field(result, 0, Val_int(len - out_left));
     CAMLreturn(result);
   } else if (errno == E2BIG)
-    CAMLreturn(NEED_MORE);
+    CAMLreturn(Val_need_more);
   else
-    CAMLreturn(ERROR);
+    CAMLreturn(Val_error);
 }
 
 /* +---------------------+
