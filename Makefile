@@ -35,7 +35,7 @@ doc:
 
 .PHONY: dist
 dist:
-	DARCS_REPO=$(PWD) darcs dist --dist-name $(NAME)-`head -n 1 VERSION`
+	DARCS_REPO=$(PWD) darcs dist --dist-name ocaml-$(NAME)-`head -n 1 VERSION`
 
 .PHONY: install
 install:
