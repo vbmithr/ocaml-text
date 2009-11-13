@@ -485,7 +485,7 @@ let rev_split ?(max=max_int) ?(sep=" ") txt =
 let find ?from txt patt =
   let len = String.length txt and patt_len = String.length patt in
   let rec loop ofs =
-    if ofs = len then
+    if ofs + patt_len > len then
       None
     else
       if ptr_equal_at txt ofs patt len patt_len then
@@ -500,7 +500,7 @@ let find ?from txt patt =
 let rev_find ?from txt patt =
   let len = String.length txt and patt_len = String.length patt in
   let rec loop ofs =
-    if ofs = 0 then
+    if ofs < 0 then
       None
     else
       if ptr_equal_at txt ofs patt len patt_len then
