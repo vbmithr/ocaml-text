@@ -546,14 +546,15 @@ let contains txt sub =
   in
   loop 0
 
-let starts_with txt sub = ptr_equal_at txt 0 sub (String.length txt) (String.length sub)
+let starts_with txt sub =
+  equal_at (pointer_l txt) sub
+
 let ends_with txt sub =
-  let len = String.length txt and sub_len = String.length sub in
-  let ofs = sub_len - len in
-  if ofs < 0 then
+  let idx = length txt - length sub in
+  if idx < 0 then
     false
   else
-    ptr_equal_at txt ofs sub len sub_len
+    equal_at (pointer_at txt idx) sub
 
 let strip ?(chars=[" "; "\t"; "\r"; "\n"]) txt =
   let rec loop_a a =
