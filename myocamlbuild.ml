@@ -36,6 +36,10 @@ let _ =
         flag ["link"; "library"; "ocaml"; "use_libtext"] & S[A"-cclib"; A"-ltext_stubs"];
         flag ["link"; "library"; "ocaml"; "byte"; "use_libtext"] & S[A"-dllib"; A"-ltext_stubs"];
 
+        rule "shared libraries (cmxs)"
+          ~dep:"%.cmxa" ~prod:"%.cmxs"
+          (fun env _ -> Cmd(S[!(Options.ocamlopt); A"-shared"; A"-linkall"; A"-I"; A"src"; A(env "%.cmxa"); A"-o"; A(env "%.cmxs")]));
+
         (* Generation of "META" *)
         rule "META" ~deps:["META.in"; "VERSION"] ~prod:"META"
           (fun _ _ ->

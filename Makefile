@@ -22,7 +22,7 @@ TARGETS = META src/$(NAME).cma
 
 ifeq ($(HAVE_NATIVE),true)
   # Native targets:
-  TARGETS += src/$(NAME).cmxa
+  TARGETS += src/$(NAME).cmxa src/$(NAME).cmxs
 endif
 
 .PHONY: all
@@ -45,6 +45,7 @@ install:
 	  $(wildcard _build/src/*.cmx) \
 	  $(wildcard _build/src/*.cma) \
 	  $(wildcard _build/src/*.cmxa) \
+	  $(wildcard _build/src/*.cmxs) \
 	  $(wildcard _build/src/*.so) \
 	  $(wildcard _build/src/*.a)
 
