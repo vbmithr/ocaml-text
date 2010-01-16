@@ -10,6 +10,10 @@
 type t = string
 exception Invalid of string * string
 
+(* +-----------------------------------------------------------------+
+   | Unsafe primitives (use with caution!)                           |
+   +-----------------------------------------------------------------+ *)
+
 let byte str i = Char.code (String.unsafe_get str i)
 let set_byte str i n = String.unsafe_set str i (Char.unsafe_chr n)
 
@@ -17,6 +21,10 @@ let unsafe_sub str ofs len =
   let res = String.create len in
   String.unsafe_blit str ofs res 0 len;
   res
+
+(* +-----------------------------------------------------------------+
+   | UTF-8 validation                                                |
+   +-----------------------------------------------------------------+ *)
 
 let check str =
   let len = String.length str in
@@ -41,15 +49,14 @@ let check str =
       None
     else
       let n = byte str i in
-      let i = i + 1 in
       if n land 0x80 = 0 then
-        loop i
+        loop (i + 1)
       else if n land 0xe0 = 0xc0 then
-        trail i 0x80 (n land 0x1f) 1
+        trail (i + 1) 0x80 (n land 0x1f) 1
       else if n land 0xf0 = 0xe0 then
-        trail i 0x800 (n land 0x0f) 2
+        trail (i + 1) 0x800 (n land 0x0f) 2
       else if n land 0xf8 = 0xf0 then
-        trail i 0x10000 (n land 0x07) 3
+        trail (i + 1) 0x10000 (n land 0x07) 3
       else
         fail i "invalid start of UTF-8 sequence"
   in
@@ -63,14 +70,18 @@ let validate str = match check str with
   | None -> ()
   | Some msg -> raise (Invalid(msg, str))
 
+(* +-----------------------------------------------------------------+
+   | Encoding/decoding                                               |
+   +-----------------------------------------------------------------+ *)
+
 let encode ?fallback ?(encoding=Encoding.system) txt = Encoding.recode_string ?fallback ~src:"UTF-8" ~dst:encoding txt
 let decode ?(encoding=Encoding.system) txt = Encoding.recode_string ~src:encoding ~dst:"UTF-8" txt
 
 let to_ascii txt = encode ~encoding:"ASCII//TRANSLIT" txt
 
-(* +----------+
-   | Pointers |
-   +----------+ *)
+(* +-----------------------------------------------------------------+
+   | Pointers                                                        |
+   +-----------------------------------------------------------------+ *)
 
 type pointer = {
   txt : t;
@@ -84,6 +95,7 @@ let pointer_r txt = { txt = txt; ofs = String.length txt }
 
 let offset ptr = ptr.ofs
 
+(* Find the offset of the end of a sequence *)
 let rec ofs_next txt ofs len =
   if ofs < len && byte txt ofs land 0xc0 = 0x80 then
     ofs_next txt (ofs + 1) len
@@ -98,6 +110,7 @@ let next ptr =
     let ofs = ofs_next ptr.txt (ptr.ofs + 1) len in
     Some(unsafe_sub ptr.txt ptr.ofs (ofs - ptr.ofs), { txt = ptr.txt; ofs = ofs })
 
+(* Find the offset of the start of a sequence *)
 let rec ofs_prev txt ofs =
   if ofs > 0 && byte txt ofs land 0xc0 = 0x80 then
     ofs_prev txt (ofs - 1)
@@ -172,9 +185,9 @@ let ptr_equal_at txt ofs sub len sub_len =
 let equal_at ptr sub =
   ptr_equal_at ptr.txt ptr.ofs sub (String.length ptr.txt) (String.length sub)
 
-(* +----------------------+
-   | High-level functions |
-   +----------------------+ *)
+(* +-----------------------------------------------------------------+
+   | High-level functions                                            |
+   +-----------------------------------------------------------------+ *)
 
 let length t =
   let len = ref 0 in
@@ -377,9 +390,9 @@ let count f txt =
   iter (fun ch -> if f ch then incr c) txt;
   !c
 
-(* +-----------------+
-   | Character class |
-   +-----------------+ *)
+(* +-----------------------------------------------------------------+
+   | Character class                                                 |
+   +-----------------------------------------------------------------+ *)
 
 external ml_is_alnum : int -> bool = "ml_text_is_alnum"
 external ml_is_alpha : int -> bool = "ml_text_is_alpha"
@@ -416,9 +429,9 @@ let is_space = for_all_code ml_is_space
 let is_upper = for_all_code ml_is_upper
 let is_digit = for_all_code ml_is_digit
 
-(* +---------------------------+
-   | Searching, Splitting, ... |
-   +---------------------------+ *)
+(* +-----------------------------------------------------------------+
+   | Searching, Splitting, ...                                       |
+   +-----------------------------------------------------------------+ *)
 
 let words txt =
   let rec loop ptr =
@@ -464,23 +477,24 @@ let split ?(max=max_int) ?(sep=" ") txt =
 
 let rev_split ?(max=max_int) ?(sep=" ") txt =
   let len = String.length txt and sep_len = String.length sep in
-  let rec loop ofs = function
-    | 0 -> []
-    | 1 -> [String.sub txt 0 ofs]
-    | rem -> loop_word ofs ofs rem
-  and loop_word end_ofs ofs rem =
+  let rec loop acc ofs = function
+    | 0 -> acc
+    | 1 -> String.sub txt 0 ofs :: acc
+    | rem -> loop_word acc ofs ofs rem
+  and loop_word acc ofs end_ofs rem =
     if ofs = 0 then
-      [String.sub txt 0 end_ofs]
+      String.sub txt 0 end_ofs :: acc
     else
+      let ofs = ofs_prev txt (ofs - 1) in
       if ptr_equal_at txt ofs sep len sep_len then
-        String.sub txt ofs (end_ofs - ofs) :: loop (ofs - sep_len) (rem - 1)
+        loop (String.sub txt (ofs + sep_len) (end_ofs - ofs - sep_len) :: acc) ofs (rem - 1)
       else
-        loop_word end_ofs (ofs_prev txt (ofs - 1)) rem
+        loop_word acc ofs end_ofs rem
   in
   if sep = "" then
     explode txt
   else
-    loop 0 max
+    loop [] len max
 
 let find ?from txt patt =
   let len = String.length txt and patt_len = String.length patt in
@@ -612,9 +626,9 @@ let lchop = function
       let ofs = ofs_next txt 1 len in
       unsafe_sub txt ofs (len - ofs)
 
-(* +--------------------+
-   | Upper/lower casing |
-   +--------------------+ *)
+(* +-----------------------------------------------------------------+
+   | Upper/lower casing                                              |
+   +-----------------------------------------------------------------+ *)
 
 let map_code f txt = map (fun ch -> char (f (code ch))) txt
 
@@ -634,9 +648,9 @@ let map_first_code f = function
 let capitalize = map_first_code ml_upper
 let uncapitalize = map_first_code ml_lower
 
-(* +------------+
-   | Comparison |
-   +------------+ *)
+(* +-----------------------------------------------------------------+
+   | Comparison                                                      |
+   +-----------------------------------------------------------------+ *)
 
 external ml_compare : string -> string -> int = "ml_text_compare"
 
