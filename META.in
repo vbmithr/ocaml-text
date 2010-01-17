@@ -17,5 +17,5 @@ package "pcre" (
   archive(plugin,byte) = "text_pcre.cma"
   archive(plugin,native) = "text_pcre.cmxs"
   archive(syntax,preprocessor) = "pa_text_pcre.cmo"
-  archive(syntax,toploop) = "pa_text_pcre.cmo"
+  archive(syntax,toploop) += "pa_text_pcre.cmo"
 )
