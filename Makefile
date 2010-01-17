@@ -8,38 +8,21 @@
 OC = ocamlbuild -classic-display
 OF = ocamlfind
 
-NAME = text
-
-# Check wether native compilation is available:
-ifeq ($(shell $(OF) ocamlopt -version 2> /dev/null),)
-  HAVE_NATIVE = false
-else
-  HAVE_NATIVE = true
-endif
-
-# Common targets:
-TARGETS = META src/$(NAME).cma
-
-ifeq ($(HAVE_NATIVE),true)
-  # Native targets:
-  TARGETS += src/$(NAME).cmxa src/$(NAME).cmxs
-endif
-
 .PHONY: all
 all:
-	$(OC) $(TARGETS)
+	$(OC) all
 
 .PHONY: doc
 doc:
-	$(OC) $(NAME).docdir/index.html
+	$(OC) text.docdir/index.html
 
 .PHONY: dist
 dist:
-	DARCS_REPO=$(PWD) darcs dist --dist-name ocaml-$(NAME)-`head -n 1 VERSION`
+	DARCS_REPO=$(PWD) darcs dist --dist-name ocaml-text-`head -n 1 VERSION`
 
 .PHONY: install
 install:
-	$(OF) install $(NAME) _build/META \
+	$(OF) install text _build/META \
 	  $(wildcard _build/src/*.mli) \
 	  $(wildcard _build/src/*.cmi) \
 	  $(wildcard _build/src/*.cmx) \
@@ -47,11 +30,12 @@ install:
 	  $(wildcard _build/src/*.cmxa) \
 	  $(wildcard _build/src/*.cmxs) \
 	  $(wildcard _build/src/*.so) \
-	  $(wildcard _build/src/*.a)
+	  $(wildcard _build/src/*.a) \
+	  $(wildcard _build/syntax/pa_text_pcre.cmo)
 
 .PHONY: uninstall
 uninstall:
-	$(OF) remove $(NAME)
+	$(OF) remove text
 
 .PHONY: reinstall
 reinstall: uninstall install
