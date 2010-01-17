@@ -308,6 +308,11 @@ val words : t -> t list
   (** Returns all words of the given text. Words are sequence of
       non-space and non-punct characters. *)
 
+val lines : t -> t list
+  (** Returns all lines of the given text, without end of line
+      characters. Both ["\r\n"] and ["\n"] are recognized as end of
+      line delimiters. *)
+
 val split : ?max : int -> ?sep : t -> t -> t list
   (** [split ?max ?sep text] split [text] according to [sep]. If [max]
       is specified, returns at most [max] splits. [sep] defaults to [" "].

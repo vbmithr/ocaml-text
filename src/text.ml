@@ -455,6 +455,32 @@ let words txt =
   in
   loop (pointer_l txt)
 
+let lines txt =
+  let rec loop start_ptr ptr =
+    match next ptr with
+      | Some("\n", ptr') ->
+          chunk start_ptr ptr :: loop ptr' ptr'
+      | Some("\r", ptr') ->
+          begin match next ptr' with
+            | Some("\n", ptr') ->
+                chunk start_ptr ptr :: loop ptr' ptr'
+            | Some(ch, ptr') ->
+                loop start_ptr ptr'
+            | None ->
+                match chunk start_ptr ptr with
+                  | "" -> []
+                  | t -> [t]
+          end
+      | Some(ch, ptr) ->
+          loop start_ptr ptr
+      | None ->
+          match chunk start_ptr ptr with
+            | "" -> []
+            | t -> [t]
+  in
+  let ptr = pointer_l txt in
+  loop ptr ptr
+
 let split ?(max=max_int) ?(sep=" ") txt =
   let len = String.length txt and sep_len = String.length sep in
   let rec loop ofs = function
