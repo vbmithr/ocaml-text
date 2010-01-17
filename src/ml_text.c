@@ -40,9 +40,9 @@
 #define Val_need_more (Val_int(0))
 #define Val_error (Val_int(1))
 
-/* +------------------------------------+
-   | Custom block for iconv descriptors |
-   +------------------------------------+ */
+/* +-----------------------------------------------------------------+
+   | Custom block for iconv descriptors                              |
+   +-----------------------------------------------------------------+ */
 
 #define Iconv_val(v) (*(iconv_t*)Data_custom_val(v))
 
@@ -70,9 +70,9 @@ static struct custom_operations ops = {
   custom_deserialize_default
 };
 
-/* +----------------+
-   | Initialization |
-   +----------------+ */
+/* +-----------------------------------------------------------------+
+   | Initialization                                                  |
+   +-----------------------------------------------------------------+ */
 
 /* This function returns the system encoding: */
 CAMLprim value ml_iconv_init(value unit)
@@ -94,9 +94,9 @@ CAMLprim value ml_iconv_init(value unit)
 #endif
 }
 
-/* +----------+
-   | Decoding |
-   +----------+ */
+/* +-----------------------------------------------------------------+
+   | Decoding                                                        |
+   +-----------------------------------------------------------------+ */
 
 CAMLprim value ml_iconv_decoder(value enc)
 {
@@ -139,9 +139,9 @@ CAMLprim value ml_iconv_decode(value cd_val, value buf_val, value pos_val, value
     CAMLreturn(Val_error);
 }
 
-/* +----------+
-   | Encoding |
-   +----------+ */
+/* +-----------------------------------------------------------------+
+   | Encoding                                                        |
+   +-----------------------------------------------------------------+ */
 
 CAMLprim value ml_iconv_encoder(value enc)
 {
@@ -183,9 +183,9 @@ CAMLprim value ml_iconv_encode(value cd_val, value buf_val, value pos_val, value
     CAMLreturn(Val_error);
 }
 
-/* +---------------------+
-   | Character utilities |
-   +---------------------+ */
+/* +-----------------------------------------------------------------+
+   | Character utilities                                             |
+   +-----------------------------------------------------------------+ */
 
 value ml_text_upper(value ch) {
   return Val_int(towupper(Int_val(ch)));
@@ -209,9 +209,9 @@ IS(punct)
 IS(space)
 IS(upper)
 
-/* +-----------------+
-   | Text comparison |
-   +-----------------+ */
+/* +-----------------------------------------------------------------+
+   | Text comparison                                                 |
+   +-----------------------------------------------------------------+ */
 
 CAMLprim value ml_text_compare(value s1, value s2) {
   CAMLparam2(s1, s2);
