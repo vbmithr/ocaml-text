@@ -267,6 +267,18 @@ class map_pattern global_regexp_collector local_regexp_collector = object
         p
 end
 
+(* Check that all variables contained in variables are distincts *)
+let check_collision variables =
+  let module StringSet = Set.Make(String) in
+  let add set (_loc, id, n, conv) =
+    if StringSet.mem id set then
+      Loc.raise _loc (Failure (Printf.sprintf "Variable %s is bound several times in this matching" id))
+    else
+      StringSet.add id set
+  in
+  let _ = List.fold_left (fun set vars -> List.fold_left add set vars) StringSet.empty variables in
+  ()
+
 (* Maps all branch of the given match case. It returns [(b, mc)]
    where [b] is [true] iff at least one branch have been modified
    and [mc] is the result. *)
@@ -292,10 +304,18 @@ let rec map_match mapper global_regexp_collector = function
           | <:expr< >> -> check_expr
           | _ -> <:expr< $cond$ && $check_expr$ >>
         in
+        (* Collect all capture variables in regexps: *)
+        let variables_by_regexp =
+          List.map
+            (fun (_loc, id, (expr, regexp)) -> (collect_regexp_bindings regexp))
+            local_regexp_collector.collect
+        in
+        (* Check for conflicts *)
+        check_collision variables_by_regexp;
         (* Bind pattern variables *)
         let rec make_bindings regexp_number acc = function
           | [] -> acc
-          | (_loc, id, (expr, regexp)) :: rest ->
+          | variables :: rest ->
               let acc = List.fold_left begin fun acc (_loc, id, n, conv) ->
                 let binding = match conv with
                   | None ->
@@ -314,10 +334,10 @@ let rec map_match mapper global_regexp_collector = function
                                                               $int:string_of_int n$) >>
                 in
                 binding :: acc
-              end acc (collect_regexp_bindings regexp) in
+              end acc variables in
               make_bindings (regexp_number + 1) acc rest
         in
-        (true, <:match_case< $patt$ when $cond$ -> let $Ast.biAnd_of_list (make_bindings 0 [] local_regexp_collector.collect)$ in $expr$ >>)
+        (true, <:match_case< $patt$ when $cond$ -> let $Ast.biAnd_of_list (make_bindings 0 [] variables_by_regexp)$ in $expr$ >>)
   | <:match_case@_loc< $mc1$ | $mc2$ >> ->
       let (b1, mc1) = map_match mapper global_regexp_collector mc1
       and (b2, mc2) = map_match mapper global_regexp_collector mc2 in
