@@ -16,6 +16,25 @@ let lookup tbl key =
   with
       Not_found -> None
 
+(* Escape special characters in literals *)
+let escape text =
+  Text.map
+    (fun ch -> match ch with
+       | "\\" | "^" | "$" | "." | "[" | "|" | "(" | ")" | "?" | "*" | "+" | "{" ->
+           "\\" ^ ch
+       | _ ->
+           ch)
+    text
+
+let escape_in_charset text =
+  Text.map
+    (fun ch -> match ch with
+       | "\\" | "-" | "[" | "]" ->
+           "\\" ^ ch
+       | _ ->
+           ch)
+    text
+
 (* +-----------------------------------------------------------------+
    | Regular expression AST                                          |
    +-----------------------------------------------------------------+ *)
@@ -33,6 +52,7 @@ type regexp =
   | Concat of Ast.loc * regexp * regexp
   | Alternative of Ast.loc * regexp * regexp
   | Bind of Ast.loc * regexp * string * converter option
+  | Charset of Ast.loc * Text.t
   | Alias of Ast.loc * string
 
 let star loc regexp = Repeat(loc, regexp, 0, None)
@@ -48,6 +68,7 @@ let loc_of_regexp = function
   | Alternative(l, _, _) -> l
   | Bind(l, _, _, _) -> l
   | Alias(l, _) -> l
+  | Charset(l, _) -> l
 
 (* +-----------------------------------------------------------------+
    | Regular expression parsing                                      |
@@ -64,7 +85,20 @@ EXTEND Gram
             | Some error ->
                 Loc.raise _loc (Failure("invalid UTF-8 string: " ^ error))
             | None ->
-                s ] ];
+                s
+      ] ];
+
+  utf8_char:
+    [ [ s = STRING ->
+          match Text.check s with
+            | Some error ->
+                Loc.raise _loc (Failure("invalid UTF-8 string: " ^ error))
+            | None ->
+                if Text.length s = 1 then
+                  s
+                else
+                  Loc.raise _loc (Failure("this UTF-8 string must contains only one unicode character"))
+      ] ];
 
   range:
     [ [ a = INT ->
@@ -86,6 +120,19 @@ EXTEND Gram
           else
             (a, None) ] ];
 
+  char:
+    [ [ x = utf8_char -> escape_in_charset x ] ];
+
+  charset_simple:
+    [ [ a = char; "-"; b = char -> a ^ "-" ^ b
+      | s = utf8_string -> escape_in_charset s
+      | a = SELF; b = SELF -> a ^ b ] ];
+
+  charset:
+    [ [ "^"; x = charset_simple -> "^" ^ x
+      | x = charset_simple -> x
+      ] ];
+
   regexp:
     [ [ r = SELF; "as"; i = LIDENT;
         conv =
@@ -103,13 +150,15 @@ EXTEND Gram
         | r = SELF; "{"; (a, b) = range; "}" -> Repeat(_loc, r, a, b) ]
 
     | "simple" NONA
-        [ s = utf8_string -> if s = "" then Epsilon _loc else Literal(_loc, s)
+        [ "["; set = charset; "]" -> Charset(_loc, set)
+        | s = utf8_string -> if s = "" then Epsilon _loc else Literal(_loc, s)
         | "_" -> Any _loc
         | i = LIDENT -> Alias(_loc, i)
         | "^" -> Alias(_loc, "^")
         | "$" -> Alias(_loc, "$")
         | "%"; name = LIDENT -> Bind(_loc, Epsilon _loc, name, Some Position)
-        | "("; r = SELF; ")" -> r ] ];
+        | "("; r = SELF; ")" -> r
+        ] ];
 
   regexp_eoi:
     [ [ re = regexp; `EOI -> re ] ];
@@ -118,16 +167,6 @@ END
 (* +-----------------------------------------------------------------+
    | AST --> pcre regular expressions                                |
    +-----------------------------------------------------------------+ *)
-
-(* Escape special characters in literals *)
-let escape text =
-  Text.map
-    (fun ch -> match ch with
-       | "\\" | "^" | "$" | "." | "[" | "|" | "(" | ")" | "?" | "*" | "+" | "{" ->
-           "\\" ^ ch
-       | _ ->
-           ch)
-    text
 
 type expansed_regexp =
   | E_epsilon
@@ -138,6 +177,7 @@ type expansed_regexp =
   | E_repeat of expansed_regexp * int * int option
   | E_concat of expansed_regexp * expansed_regexp
   | E_alternative of expansed_regexp * expansed_regexp
+  | E_charset of Text.t
 
 let rec expanse = function
   | Epsilon _ -> E_epsilon
@@ -147,14 +187,15 @@ let rec expanse = function
   | Concat(_, r1, r2) -> E_concat(E_group(expanse r1), E_group(expanse r2))
   | Alternative(_, r1, r2) -> E_alternative(E_group(expanse r1), E_group(expanse r2))
   | Bind(_, r, _, _) -> E_capture(E_group(expanse r))
+  | Charset(_, text) -> E_charset text
   | Alias _ -> assert false
 
 let simplify re =
   (* Remove unnecessary groups: *)
   let rec group re = match re with
-    | E_epsilon | E_literal _ | E_any ->
+    | E_epsilon | E_literal _ | E_any | E_charset _ ->
         re
-    | E_repeat(E_group(E_epsilon | E_any as re), min, max) ->
+    | E_repeat(E_group(E_epsilon | E_any | E_charset _ as re), min, max) ->
         E_repeat(re, min, max)
     | E_repeat(E_group(E_literal lit as re), min, max) when Text.length lit = 1 ->
         E_repeat(re, min, max)
@@ -166,7 +207,7 @@ let simplify re =
         group (E_capture re)
     | E_capture(E_group re) ->
         group (E_capture re)
-    | E_group(E_epsilon | E_any | E_repeat _ as re) ->
+    | E_group(E_epsilon | E_any | E_repeat _ | E_charset _ as re) ->
         re
     | E_group(E_literal lit) when Text.length lit = 1 ->
         E_literal lit
@@ -183,7 +224,7 @@ let simplify re =
   and concat re = match re with
     | E_concat(E_literal lit1, E_literal lit2) ->
         E_literal(lit1 ^ lit2)
-    | E_epsilon | E_literal _ | E_any ->
+    | E_epsilon | E_literal _ | E_any | E_charset _ ->
         re
     | E_group re ->
         E_group(concat re)
@@ -244,6 +285,10 @@ let string_of_regexp re =
         loop r1;
         add "|";
         loop r2
+    | E_charset c ->
+        add "[";
+        add c;
+        add "]"
   in
   loop (simplify (expanse re));
   Buffer.contents buffer
@@ -255,7 +300,7 @@ let string_of_regexp re =
 (* Return the list of bounded variables with their group number *)
 let collect_regexp_bindings ast =
   let rec loop n acc = function
-    | Epsilon _ | Literal _| Any _ | Alias _->
+    | Epsilon _ | Literal _| Any _ | Alias _ | Charset _ ->
         (n, acc)
     | Repeat(_, r, _, _) ->
         loop n acc r
