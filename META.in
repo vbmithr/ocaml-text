@@ -9,13 +9,13 @@ archive(plugin,byte) = "text.cma"
 archive(plugin,native) = "text.cmxs"
 
 package "pcre" (
-  exists_if = "pa_text_pcre.cmo"
+  exists_if = "text_pcre.cma"
   description = "Syntactic sugars for regular expression using PCRE"
   requires = "text pcre camlp4"
   archive(byte) = "text_pcre.cma"
   archive(native) = "text_pcre.cmxa"
   archive(plugin,byte) = "text_pcre.cma"
   archive(plugin,native) = "text_pcre.cmxs"
-  archive(syntax,preprocessor) = "pa_text_pcre.cmo"
+  archive(syntax,preprocessor) = "text.cma pa_text_pcre.cmo"
   archive(syntax,toploop) += "pa_text_pcre.cmo"
 )
