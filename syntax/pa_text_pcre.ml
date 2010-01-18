@@ -58,6 +58,14 @@ let regexp_eoi = Gram.Entry.mk "regexp_eoi"
 EXTEND Gram
   GLOBAL: regexp_eoi;
 
+  utf8_string:
+    [ [ s = STRING ->
+          match Text.check s with
+            | Some error ->
+                Loc.raise _loc (Failure("invalid UTF-8 string: " ^ error))
+            | None ->
+                s ] ];
+
   range:
     [ [ a = INT ->
           let a = int_of_string a in
@@ -95,7 +103,7 @@ EXTEND Gram
         | r = SELF; "{"; (a, b) = range; "}" -> Repeat(_loc, r, a, b) ]
 
     | "simple" NONA
-        [ s = STRING -> Literal(_loc, s)
+        [ s = utf8_string -> Literal(_loc, s)
         | "_" -> Any _loc
         | i = LIDENT -> Alias(_loc, i)
         | "^" -> Alias(_loc, "^")
@@ -202,7 +210,7 @@ let expand_regexp _loc _loc_name_opt quotation_contents =
   let ast = Gram.parse_string regexp_eoi _loc quotation_contents in
   let id = gen_id () in
   Hashtbl.add regexps id ast;
-  (<:patt< $lid:id$ >>)
+  <:patt< $lid:id$ >>
 
 (* +-----------------------------------------------------------------+
    | Code generation via ast filters                                 |
@@ -267,16 +275,30 @@ class map_pattern global_regexp_collector local_regexp_collector = object
         p
 end
 
+module StringSet = Set.Make(String)
+
+class collect_pattern_lids set = object
+  inherit Ast.map as super
+
+  method patt patt = match super#patt patt with
+    | <:patt< $lid:id$ >> as patt ->
+        set := StringSet.add id !set;
+        patt
+    | p ->
+        patt
+end
+
 (* Check that all variables contained in variables are distincts *)
-let check_collision variables =
-  let module StringSet = Set.Make(String) in
+let check_collision patt variables =
   let add set (_loc, id, n, conv) =
     if StringSet.mem id set then
       Loc.raise _loc (Failure (Printf.sprintf "Variable %s is bound several times in this matching" id))
     else
       StringSet.add id set
   in
-  let _ = List.fold_left (fun set vars -> List.fold_left add set vars) StringSet.empty variables in
+  let set = ref StringSet.empty in
+  let _ = (new collect_pattern_lids set)#patt patt in
+  let _ = List.fold_left (fun set vars -> List.fold_left add set vars) !set variables in
   ()
 
 (* Maps all branch of the given match case. It returns [(b, mc)]
@@ -311,7 +333,7 @@ let rec map_match mapper global_regexp_collector = function
             local_regexp_collector.collect
         in
         (* Check for conflicts *)
-        check_collision variables_by_regexp;
+        check_collision patt variables_by_regexp;
         (* Bind pattern variables *)
         let rec make_bindings regexp_number acc = function
           | [] -> acc
