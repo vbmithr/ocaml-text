@@ -26,7 +26,7 @@ type converter =
   | Position
 
 type regexp =
-  | Nil of Ast.loc
+  | Epsilon of Ast.loc
   | Literal of Ast.loc * string
   | Any of Ast.loc
   | Repeat of Ast.loc * regexp * int (* minimum *) * int option (* maximum *)
@@ -40,7 +40,7 @@ let plus loc regexp = Repeat(loc, regexp, 1, None)
 let opt loc regexp = Repeat(loc, regexp, 0, Some 1)
 
 let loc_of_regexp = function
-  | Nil l -> l
+  | Epsilon l -> l
   | Literal(l, _) -> l
   | Any l -> l
   | Repeat(l, _, _, _) -> l
@@ -103,12 +103,12 @@ EXTEND Gram
         | r = SELF; "{"; (a, b) = range; "}" -> Repeat(_loc, r, a, b) ]
 
     | "simple" NONA
-        [ s = utf8_string -> Literal(_loc, s)
+        [ s = utf8_string -> if s = "" then Epsilon _loc else Literal(_loc, s)
         | "_" -> Any _loc
         | i = LIDENT -> Alias(_loc, i)
         | "^" -> Alias(_loc, "^")
         | "$" -> Alias(_loc, "$")
-        | "%"; name = LIDENT -> Bind(_loc, Nil _loc, name, Some Position)
+        | "%"; name = LIDENT -> Bind(_loc, Epsilon _loc, name, Some Position)
         | "("; r = SELF; ")" -> r ] ];
 
   regexp_eoi:
@@ -119,52 +119,133 @@ END
    | AST --> pcre regular expressions                                |
    +-----------------------------------------------------------------+ *)
 
-let string_of_regexp ast =
-  let buffer = Buffer.create 42 in
-  let rec loop = function
-    | Nil _ ->
-        ()
-    | Literal(_, lit) ->
-        Buffer.add_string buffer lit
-    | Any _ ->
-        Buffer.add_char buffer '.'
-    | Repeat(_, r, 0, None) ->
-        loop r;
-        Buffer.add_char buffer '*'
-    | Repeat(_, r, 1, None) ->
-        loop r;
-        Buffer.add_char buffer '+'
-    | Repeat(_, r, 0, Some 1) ->
-        loop r;
-        Buffer.add_char buffer '?'
-    | Repeat(_, r, min, None) ->
-        loop r;
-        Printf.bprintf buffer "{%d+}" min
-    | Repeat(_, r, min, Some max) when min = max ->
-        loop r;
-        Printf.bprintf buffer "{%d}" min
-    | Repeat(_, r, min, Some max) ->
-        loop r;
-        Printf.bprintf buffer "{%d-%d}" min max
-    | Concat(_, r1, r2) ->
-        loop r1;
-        loop r2
-    | Alternative(_, r1, r2) ->
-        loop r1;
-        Buffer.add_char buffer '|';
-        loop r2
-    | Bind(_, r, i, c) ->
-        Buffer.add_char buffer '(';
-        loop r;
-        Buffer.add_char buffer ')'
-    | Alias(_, "^") ->
-        Buffer.add_char buffer '^'
-    | Alias(_, "$") ->
-        Buffer.add_char buffer '$'
-    | Alias(_, i) ->
-        assert false
+(* Escape special characters in literals *)
+let escape text =
+  Text.map
+    (fun ch -> match ch with
+       | "\\" | "^" | "$" | "." | "[" | "|" | "(" | ")" | "?" | "*" | "+" | "{" ->
+           "\\" ^ ch
+       | _ ->
+           ch)
+    text
+
+type expansed_regexp =
+  | E_epsilon
+  | E_literal of Text.t
+  | E_group of expansed_regexp
+  | E_capture of expansed_regexp
+  | E_any
+  | E_repeat of expansed_regexp * int * int option
+  | E_concat of expansed_regexp * expansed_regexp
+  | E_alternative of expansed_regexp * expansed_regexp
+
+let rec expanse = function
+  | Epsilon _ -> E_epsilon
+  | Literal(_, lit) -> E_literal lit
+  | Any _ -> E_any
+  | Repeat(_, r, min, max) -> E_repeat(E_group(expanse r), min, max)
+  | Concat(_, r1, r2) -> E_concat(E_group(expanse r1), E_group(expanse r2))
+  | Alternative(_, r1, r2) -> E_alternative(E_group(expanse r1), E_group(expanse r2))
+  | Bind(_, r, _, _) -> E_capture(E_group(expanse r))
+  | Alias _ -> assert false
+
+let simplify re =
+  (* Remove unnecessary groups: *)
+  let rec group re = match re with
+    | E_epsilon | E_literal _ | E_any ->
+        re
+    | E_repeat(E_group(E_epsilon | E_any as re), min, max) ->
+        E_repeat(re, min, max)
+    | E_repeat(E_group(E_literal lit as re), min, max) when Text.length lit = 1 ->
+        E_repeat(re, min, max)
+    | E_repeat(r, min, max) ->
+        E_repeat(group r, min, max)
+    | E_group(E_group re) ->
+        group (E_group re)
+    | E_group(E_capture re) ->
+        group (E_capture re)
+    | E_capture(E_group re) ->
+        group (E_capture re)
+    | E_group(E_epsilon | E_any | E_repeat _ as re) ->
+        re
+    | E_group(E_literal lit) when Text.length lit = 1 ->
+        E_literal lit
+    | E_group re ->
+        E_group(group re)
+    | E_capture re ->
+        E_capture(group re)
+    | E_alternative(r1, r2) ->
+        E_alternative(group r1, group r2)
+    | E_concat(r1, r2) ->
+        E_concat(group r1, group r2)
+
+  (* Concat what is concatenable: *)
+  and concat re = match re with
+    | E_concat(E_literal lit1, E_literal lit2) ->
+        E_literal(lit1 ^ lit2)
+    | E_epsilon | E_literal _ | E_any ->
+        re
+    | E_group re ->
+        E_group(concat re)
+    | E_capture re ->
+        E_capture(concat re)
+    | E_repeat(r, min, max) ->
+        E_repeat(concat r, min, max)
+    | E_concat(r1, r2) ->
+        E_concat(concat r1, concat r2)
+    | E_alternative(r1, r2) ->
+        E_alternative(concat r1, concat r2)
   in
-  loop ast;
+
+  (* Simplify until we reach a fix-point: *)
+  let rec loop re =
+    let re' = concat (group re) in
+    if re <> re' then
+      loop re'
+    else
+      re
+  in
+  loop re
+
+let string_of_regexp re =
+  let buffer = Buffer.create 42 in
+  let add str = Buffer.add_string buffer str in
+  let rec loop = function
+    | E_epsilon ->
+        ()
+    | E_literal lit ->
+        add (escape lit)
+    | E_group re ->
+        add "(?:";
+        loop re;
+        add ")"
+    | E_capture re ->
+        add "(";
+        loop re;
+        add ")"
+    | E_any ->
+        add "."
+    | E_repeat(re, min, Some max) ->
+        loop re;
+        add "{";
+        add (string_of_int min);
+        add ",";
+        add (string_of_int max);
+        add "}"
+    | E_repeat(re, min, None) ->
+        loop re;
+        add "{";
+        add (string_of_int min);
+        add ",}"
+    | E_concat(r1, r2) ->
+        loop r1;
+        loop r2
+    | E_alternative(r1, r2) ->
+        loop r1;
+        add "|";
+        loop r2
+  in
+  loop (simplify (expanse re));
   Buffer.contents buffer
 
 (* +-----------------------------------------------------------------+
@@ -174,7 +255,7 @@ let string_of_regexp ast =
 (* Return the list of bounded variables with their group number *)
 let collect_regexp_bindings ast =
   let rec loop n acc = function
-    | Nil _ | Literal _| Any _ | Alias _->
+    | Epsilon _ | Literal _| Any _ | Alias _->
         (n, acc)
     | Repeat(_, r, _, _) ->
         loop n acc r
