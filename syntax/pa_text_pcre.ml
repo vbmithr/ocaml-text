@@ -586,8 +586,8 @@ let global_env = ref(
     ("hspace", E_meta "\\h");
     ("vspace", E_meta "\\v");
     ("bound", E_meta "\\b");
-    ("bol", E_meta "^");
-    ("eol", E_meta "$");
+    ("bos", E_meta "^");
+    ("eos", E_meta "$");
   ]
 )
 
