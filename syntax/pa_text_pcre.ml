@@ -29,7 +29,7 @@ let escape text =
 let escape_in_charset text =
   Text.map
     (fun ch -> match ch with
-       | "\\" | "-" | "[" | "]" ->
+       | "\\" | "-" | "[" | "]" | "^" ->
            "\\" ^ ch
        | _ ->
            ch)
@@ -120,13 +120,16 @@ EXTEND Gram
           else
             (a, None) ] ];
 
-  char:
-    [ [ x = utf8_char -> escape_in_charset x ] ];
-
   charset_simple:
-    [ [ a = char; "-"; b = char -> a ^ "-" ^ b
-      | s = utf8_string -> escape_in_charset s
-      | a = SELF; b = SELF -> a ^ b ] ];
+    [ [ a = utf8_char; "-"; b = utf8_char ->
+          if Text.code a < Text.code then
+            escape_in_charset a ^ "-" ^ escape_in_charset b
+          else
+            Loc.raise _loc (Failure "invalid charset: the upper limit must be greater than the lower limit")
+      | s = utf8_string ->
+          escape_in_charset s
+      | a = SELF; b = SELF ->
+          a ^ b ] ];
 
   charset:
     [ [ "^"; x = charset_simple -> "^" ^ x
