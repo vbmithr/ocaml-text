@@ -156,6 +156,12 @@ EXTEND Gram
           Ca_verbatim(_loc, escape_in_charset s)
       | id = LIDENT ->
           Ca_variable(_loc, id)
+      | prop = UIDENT ->
+          check_property _loc prop;
+          Ca_verbatim(_loc, Printf.sprintf "\\p{%s}" prop)
+      | "~"; prop = UIDENT ->
+          check_property _loc prop;
+          Ca_verbatim(_loc, Printf.sprintf "\\P{%s}" prop)
       ] ];
 
   charset:
