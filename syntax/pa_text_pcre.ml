@@ -88,18 +88,6 @@ EXTEND Gram
                 s
       ] ];
 
-  utf8_char:
-    [ [ s = STRING ->
-          match Text.check s with
-            | Some error ->
-                Loc.raise _loc (Failure("invalid UTF-8 string: " ^ error))
-            | None ->
-                if Text.length s = 1 then
-                  s
-                else
-                  Loc.raise _loc (Failure("this UTF-8 string must contains only one unicode character"))
-      ] ];
-
   range:
     [ [ a = INT ->
           let a = int_of_string a in
@@ -120,9 +108,11 @@ EXTEND Gram
           else
             (a, None) ] ];
 
-  charset_simple:
-    [ [ a = utf8_char; "-"; b = utf8_char ->
-          if Text.code a < Text.code then
+  charset:
+    [ [ a = utf8_string; ["-" | ".."]; b = utf8_string ->
+          if Text.length a <> 1 || Text.length b <> 1 then
+            Loc.raise _loc (Failure("UTF-8 string literals in charset range must contain only one unicode character"))
+          else if Text.code a < Text.code b then
             escape_in_charset a ^ "-" ^ escape_in_charset b
           else
             Loc.raise _loc (Failure "invalid charset: the upper limit must be greater than the lower limit")
@@ -130,11 +120,6 @@ EXTEND Gram
           escape_in_charset s
       | a = SELF; b = SELF ->
           a ^ b ] ];
-
-  charset:
-    [ [ "^"; x = charset_simple -> "^" ^ x
-      | x = charset_simple -> x
-      ] ];
 
   regexp:
     [ [ r = SELF; "as"; i = LIDENT;
@@ -154,6 +139,7 @@ EXTEND Gram
 
     | "simple" NONA
         [ "["; set = charset; "]" -> Charset(_loc, set)
+        | "[^"; set = charset; "]" -> Charset(_loc, "^" ^ set)
         | s = utf8_string -> if s = "" then Epsilon _loc else Literal(_loc, s)
         | "_" -> Any _loc
         | i = LIDENT -> Alias(_loc, i)
