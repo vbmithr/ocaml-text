@@ -148,10 +148,12 @@ type charset = charset_atom list
 
 type mode = Caseless | Multiline | Dot_all
 
+type greediness = Greedy | Lazy | Possessive
+
 type regexp =
   | Epsilon of Ast.loc
   | Literal of Ast.loc * string
-  | Repeat of Ast.loc * regexp * int (* minimum *) * int option (* maximum *)
+  | Repeat of Ast.loc * regexp * int (* minimum *) * int option (* maximum *) * greediness
   | Concat of Ast.loc * regexp * regexp
   | Alternative of Ast.loc * regexp * regexp
   | Bind of Ast.loc * regexp * string * converter option
@@ -161,9 +163,9 @@ type regexp =
   | Backward_reference of Ast.loc * string
   | Mode of Ast.loc * mode * bool
 
-let star loc regexp = Repeat(loc, regexp, 0, None)
-let plus loc regexp = Repeat(loc, regexp, 1, None)
-let opt loc regexp = Repeat(loc, regexp, 0, Some 1)
+let star loc regexp greediness = Repeat(loc, regexp, 0, None, greediness)
+let plus loc regexp greediness = Repeat(loc, regexp, 1, None, greediness)
+let opt loc regexp greediness = Repeat(loc, regexp, 0, Some 1, greediness)
 
 (* +-----------------------------------------------------------------+
    | Regular expression parsing                                      |
@@ -190,7 +192,7 @@ EXTEND Gram
             Loc.raise _loc (Failure "range bounds must be positive number")
           else
             (a, Some a)
-      | a = INT; ["-" | ".."]; b = INT ->
+      | a = INT; "-"; b = INT ->
           let a = int_of_string a and b = int_of_string b in
           if a < 0 || b < a then
             Loc.raise _loc (Failure "invalid range bounds")
@@ -249,10 +251,18 @@ EXTEND Gram
       | r1 = SELF; r2 = SELF -> Concat(_loc, r1, r2) ]
 
     | "postop" NONA
-        [ r = SELF; "*" -> star _loc r
-        | r = SELF; "+" -> plus _loc r
-        | r = SELF; "?" -> opt _loc r
-        | r = SELF; "{"; (a, b) = range; "}" -> Repeat(_loc, r, a, b) ]
+        [ r = SELF; "*" -> star _loc r Greedy
+        | r = SELF; "+" -> plus _loc r Greedy
+        | r = SELF; "?" -> opt _loc r Greedy
+        | r = SELF; "{"; (a, b) = range; "}" -> Repeat(_loc, r, a, b, Greedy)
+        | r = SELF; "*?" -> star _loc r Lazy
+        | r = SELF; "+?" -> plus _loc r Lazy
+        | r = SELF; "??" -> opt _loc r Lazy
+        | r = SELF; "{"; (a, b) = range; "}"; "?" -> Repeat(_loc, r, a, b, Lazy)
+        | r = SELF; "*+" -> star _loc r Possessive
+        | r = SELF; "++" -> plus _loc r Possessive
+        | r = SELF; "?+" -> opt _loc r Possessive
+        | r = SELF; "{"; (a, b) = range; "}"; "+" -> Repeat(_loc, r, a, b, Possessive) ]
 
     | "preop" NONA
         [ "!"; id = LIDENT -> Backward_reference (_loc, id) ]
@@ -306,7 +316,7 @@ type expansed_regexp =
   | E_literal of Text.t
   | E_group of expansed_regexp
   | E_capture of expansed_regexp
-  | E_repeat of expansed_regexp * int * int option
+  | E_repeat of expansed_regexp * int * int option * greediness
   | E_concat of expansed_regexp * expansed_regexp
   | E_alternative of expansed_regexp * expansed_regexp
   | E_charset of Text.t
@@ -333,9 +343,9 @@ let expanse env ast =
         (vars, n, E_epsilon)
     | Literal(_, lit) ->
         (vars, n, E_literal lit)
-    | Repeat(_, r, min, max) ->
+    | Repeat(_, r, min, max, greediness) ->
         let vars, n, r = loop vars n r in
-        (vars, n, E_repeat(E_group r, min, max))
+        (vars, n, E_repeat(E_group r, min, max, greediness))
     | Concat(_, r1, r2) ->
         let vars, n, r1 = loop vars n r1 in
         let vars, n, r2 = loop vars n r2 in
@@ -415,16 +425,16 @@ let simplify re =
         E_concat(r1, r2)
 
     (* Simplify stupid regexp: *)
-    | E_repeat(E_epsilon, _, _) ->
+    | E_repeat(E_epsilon, _, _, _) ->
         E_epsilon
 
     (* Group merging *)
-    | E_repeat(E_group(E_epsilon | E_charset _ | E_posix _ | E_meta _ | E_backward_reference _ | E_mode _ as re), min, max) ->
-        E_repeat(re, min, max)
-    | E_repeat(E_group(E_literal lit as re), min, max) when Text.length lit = 1 ->
-        E_repeat(re, min, max)
-    | E_repeat(r, min, max) ->
-        E_repeat(map r, min, max)
+    | E_repeat(E_group(E_epsilon | E_charset _ | E_posix _ | E_meta _ | E_backward_reference _ | E_mode _ as re), min, max, greediness) ->
+        E_repeat(re, min, max, greediness)
+    | E_repeat(E_group(E_literal lit as re), min, max, greediness) when Text.length lit = 1 ->
+        E_repeat(re, min, max, greediness)
+    | E_repeat(r, min, max, greediness) ->
+        E_repeat(map r, min, max, greediness)
     | E_group(E_group re) ->
         map (E_group re)
     | E_group(E_capture re) ->
@@ -467,6 +477,11 @@ let string_of_mode = function
 let string_of_regexp re =
   let buffer = Buffer.create 42 in
   let add str = Buffer.add_string buffer str in
+  let addg = function
+    | Greedy -> ()
+    | Lazy -> add "?"
+    | Possessive -> add "+"
+  in
   let rec loop = function
     | E_epsilon ->
         ()
@@ -480,27 +495,32 @@ let string_of_regexp re =
         add "(";
         loop re;
         add ")"
-    | E_repeat(re, 0, None) ->
+    | E_repeat(re, 0, None, g) ->
         loop re;
-        add "*"
-    | E_repeat(re, 1, None) ->
+        add "*";
+        addg g
+    | E_repeat(re, 1, None, g) ->
         loop re;
-        add "+"
-    | E_repeat(re, 0, Some 1) ->
+        add "+";
+        addg g
+    | E_repeat(re, 0, Some 1, g) ->
         loop re;
-        add "?"
-    | E_repeat(re, min, Some max) ->
+        add "?";
+        addg g
+    | E_repeat(re, min, Some max, g) ->
         loop re;
         add "{";
         add (string_of_int min);
         add ",";
         add (string_of_int max);
-        add "}"
-    | E_repeat(re, min, None) ->
+        add "}";
+        addg g
+    | E_repeat(re, min, None, g) ->
         loop re;
         add "{";
         add (string_of_int min);
-        add ",}"
+        add ",}";
+        addg g
     | E_concat(r1, r2) ->
         loop r1;
         loop r2
@@ -572,7 +592,7 @@ let collect_regexp_bindings ast =
   let rec loop n acc = function
     | Epsilon _ | Literal _ | Variable _ | Charset _ | Meta _ | Backward_reference _ | Mode _ ->
         (n, acc)
-    | Repeat(_, r, _, _) ->
+    | Repeat(_, r, _, _, _) ->
         loop n acc r
     | Concat(_, r1, r2) ->
         let n, acc = loop n acc r1 in
