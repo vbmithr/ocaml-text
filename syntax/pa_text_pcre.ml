@@ -130,7 +130,7 @@ EXTEND Gram
             Loc.raise _loc (Failure "range bounds must be positive number")
           else
             (a, Some a)
-      | a = INT; "-"; b = INT ->
+      | a = INT; ["-" | ".."]; b = INT ->
           let a = int_of_string a and b = int_of_string b in
           if a < 0 || b < a then
             Loc.raise _loc (Failure "invalid range bounds")
