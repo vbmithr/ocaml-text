@@ -208,6 +208,7 @@ IS(print)
 IS(punct)
 IS(space)
 IS(upper)
+IS(xdigit)
 
 /* +-----------------------------------------------------------------+
    | Text comparison                                                 |

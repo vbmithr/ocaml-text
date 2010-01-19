@@ -244,7 +244,7 @@ val is_print : t -> bool
 val is_punct : t -> bool
 val is_space : t -> bool
 val is_upper : t -> bool
-val is_digit : t -> bool
+val is_xdigit : t -> bool
 
 (** {6 Text traversals} *)
 

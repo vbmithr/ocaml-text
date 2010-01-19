@@ -405,7 +405,7 @@ external ml_is_print : int -> bool = "ml_text_is_print"
 external ml_is_punct : int -> bool = "ml_text_is_punct"
 external ml_is_space : int -> bool = "ml_text_is_space"
 external ml_is_upper : int -> bool = "ml_text_is_upper"
-external ml_is_digit : int -> bool = "ml_text_is_digit"
+external ml_is_xdigit : int -> bool = "ml_text_is_xdigit"
 
 let for_all_code f txt = for_all (fun ch -> f (code ch)) txt
 
