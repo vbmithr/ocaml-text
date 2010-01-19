@@ -263,7 +263,7 @@ let sub txt idx len =
   let a = pointer_at txt idx in
   let b = move len a in
   if a.ofs > b.ofs then
-    invalid_arg "Text.sub"
+    unsafe_sub txt b.ofs (a.ofs - b.ofs)
   else
     unsafe_sub txt a.ofs (b.ofs - a.ofs)
 
@@ -576,15 +576,18 @@ let replace text ~patt ~repl =
     | _ ->
         loop 0 0
 
-let contains txt sub =
-  let len = String.length txt and sub_len = String.length sub in
-  let rec loop ofs =
-    if ofs = len then
-      false
-    else
-      ptr_equal_at txt ofs sub len sub_len || loop (ofs_next txt (ofs + 1) len)
-  in
-  loop 0
+let contains txt = function
+  | "" ->
+      true
+  | sub ->
+      let len = String.length txt and sub_len = String.length sub in
+      let rec loop ofs =
+        if ofs = len then
+          false
+        else
+          ptr_equal_at txt ofs sub len sub_len || loop (ofs_next txt (ofs + 1) len)
+      in
+      loop 0
 
 let starts_with txt sub =
   equal_at (pointer_l txt) sub

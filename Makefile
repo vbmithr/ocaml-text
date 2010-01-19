@@ -12,6 +12,10 @@ OF = ocamlfind
 all:
 	$(OC) all
 
+.PHONY: tests
+tests:
+	$(OC) test_programs
+
 .PHONY: doc
 doc:
 	$(OC) text.docdir/index.html

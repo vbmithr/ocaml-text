@@ -107,8 +107,8 @@ let _ =
         Options.ocamldoc := S[A"ocamlfind"; A"ocamldoc"; A"-hide-warnings"]
 
     | After_rules ->
-
         Pathname.define_context "syntax" ["src"];
+        Pathname.define_context "tests" ["src"];
 
         (* +---------------------------------------------------------+
            | Virtual targets                                         |
@@ -128,6 +128,10 @@ let _ =
         virtual_rule "all" & byte @ (if have_native then native else []) @ common;
         virtual_rule "byte" & byte @ common;
         virtual_rule "native" & native @ common;
+        virtual_rule "test_programs" & List.map (if have_native then
+                                                   Printf.sprintf "tests/%s.native"
+                                                 else
+                                                   Printf.sprintf "tests/%s.byte") ["test"];
 
         (* +---------------------------------------------------------+
            | Ocamlfind stuff                                         |
