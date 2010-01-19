@@ -32,8 +32,77 @@ let uchar_properties = [
   "Z"; "Zl"; "Zp"; "Zs";
 ]
 
+let scripts = [
+  "Arabic";
+  "Armenian";
+  "Balinese";
+  "Bengali";
+  "Bopomofo";
+  "Braille";
+  "Buginese";
+  "Buhid";
+  "Canadian_boriginal";
+  "Cherokee";
+  "Common";
+  "Coptic";
+  "Cuneiform";
+  "Cypriot";
+  "Cyrillic";
+  "Deseret";
+  "Devanagari";
+  "Ethiopic";
+  "Georgian";
+  "Glagolitic";
+  "Gothic";
+  "Greek";
+  "Gujarati";
+  "Gurmukhi";
+  "Han";
+  "Hangul";
+  "Hanunoo";
+  "Hebrew";
+  "Hiragana";
+  "Inherited";
+  "Kannada";
+  "Katakana";
+  "Kharoshthi";
+  "Khmer";
+  "Lao";
+  "Latin";
+  "Limbu";
+  "Linear_B";
+  "Malayalam";
+  "Mongolian";
+  "Myanmar";
+  "New_Tai_Lue";
+  "Nko";
+  "Ogham";
+  "Old_Italic";
+  "Old_Persian";
+  "Oriya";
+  "Osmanya";
+  "Phags_Pa";
+  "Phoenician";
+  "Runic";
+  "Shavian";
+  "Sinhala";
+  "Syloti_Nagri";
+  "Syriac";
+  "Tagalog";
+  "Tagbanwa";
+  "Tai_Le";
+  "Tamil";
+  "Telugu";
+  "Thaana";
+  "Thai";
+  "Tibetan";
+  "Tifinagh";
+  "Ugaritic";
+  "Yi";
+]
+
 let check_property loc name =
-  if List.mem name uchar_properties then
+  if List.mem name uchar_properties || List.mem name scripts then
     ()
   else
     Loc.raise loc (Failure(Printf.sprintf "invalid character property: '%s'" name))
