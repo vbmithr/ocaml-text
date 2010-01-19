@@ -24,7 +24,7 @@ module Env = Map.Make(String)
 
 let uchar_properties = [
   "C"; "Cc"; "Cf"; "Cn"; "Co"; "Cs";
-  "L"; "Ll"; "Lm"; "Lo"; "Lt"; "Lu"; "L&";
+  "L"; "Ll"; "Lm"; "Lo"; "Lt"; "Lu";
   "M"; "Mc"; "Me"; "Mn";
   "N"; "Nd"; "Nl"; "No";
   "P"; "Pc"; "Pd"; "Pe"; "Pf"; "Pi"; "Po"; "Ps";
