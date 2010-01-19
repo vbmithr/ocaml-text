@@ -36,7 +36,7 @@ let check_property loc name =
   if List.mem name uchar_properties then
     ()
   else
-    Loc.raise loc (Failure(Printf.sprintf "invalid character property: %S" name))
+    Loc.raise loc (Failure(Printf.sprintf "invalid character property: '%s'" name))
 
 (* +-----------------------------------------------------------------+
    | Literal escaping                                                |
@@ -77,6 +77,8 @@ type charset_atom =
 
 type charset = charset_atom list
 
+type mode = Caseless | Multiline | Dot_all
+
 type regexp =
   | Epsilon of Ast.loc
   | Literal of Ast.loc * string
@@ -88,22 +90,11 @@ type regexp =
   | Meta of Ast.loc * Text.t
   | Variable of Ast.loc * string * bool (* negate *)
   | Backward_reference of Ast.loc * string
+  | Mode of Ast.loc * mode * bool
 
 let star loc regexp = Repeat(loc, regexp, 0, None)
 let plus loc regexp = Repeat(loc, regexp, 1, None)
 let opt loc regexp = Repeat(loc, regexp, 0, Some 1)
-
-let loc_of_regexp = function
-  | Epsilon l -> l
-  | Literal(l, _) -> l
-  | Repeat(l, _, _, _) -> l
-  | Concat(l, _, _) -> l
-  | Alternative(l, _, _) -> l
-  | Bind(l, _, _, _) -> l
-  | Variable(l, _, _) -> l
-  | Charset(l, _, _) -> l
-  | Meta(l, _) -> l
-  | Backward_reference(l, _) -> l
 
 (* +-----------------------------------------------------------------+
    | Regular expression parsing                                      |
@@ -169,6 +160,15 @@ EXTEND Gram
   charset:
     [ [ l = LIST0 charset_atom -> l ] ];
 
+  mode:
+    [ [ mode = LIDENT ->
+          match mode with
+            | "i" | "caseless" -> Caseless
+            | "m" | "multiline" -> Multiline
+            | "s" | "singleline" | "dotall" -> Dot_all
+            | _ -> Loc.raise _loc (Failure(Printf.sprintf "invalid mode: '%s'" mode))
+      ] ];
+
   regexp:
     [ [ r = SELF; "as"; i = LIDENT;
         conv =
@@ -208,6 +208,10 @@ EXTEND Gram
             Meta(_loc, "^")
         | "$" ->
             Meta(_loc, "$")
+        | "&+"; mode = mode ->
+            Mode(_loc, mode, true)
+        | "&-"; mode = mode ->
+            Mode(_loc, mode, false)
         | prop = UIDENT ->
             check_property _loc prop;
             Meta(_loc, Printf.sprintf "\\p{%s}" prop)
@@ -240,6 +244,7 @@ type expansed_regexp =
   | E_posix of Text.t * bool (* negate *)
   | E_meta of Text.t
   | E_backward_reference of int
+  | E_mode of mode * bool
 
 let negate_class loc re =
   match re with
@@ -316,6 +321,8 @@ let expanse env ast =
         with Not_found ->
           Loc.raise loc (Failure "invalid backward reference")
       end
+    | Mode(loc, mode, state) ->
+        (vars, n, E_mode(mode, state))
   in
   let vars, n, re = loop Env.empty 1 ast in
   re
@@ -324,7 +331,7 @@ let simplify re =
   let rec map re = match re with
 
     (* Ecxpression that cannot be simplified: *)
-    | E_epsilon | E_literal _ | E_charset _ | E_posix _ | E_meta _ | E_backward_reference _ ->
+    | E_epsilon | E_literal _ | E_charset _ | E_posix _ | E_meta _ | E_backward_reference _ | E_mode _ ->
         re
 
     (* Simplify concatenations: *)
@@ -343,7 +350,7 @@ let simplify re =
         E_epsilon
 
     (* Group merging *)
-    | E_repeat(E_group(E_epsilon | E_charset _ | E_posix _ | E_meta _ | E_backward_reference _ as re), min, max) ->
+    | E_repeat(E_group(E_epsilon | E_charset _ | E_posix _ | E_meta _ | E_backward_reference _ | E_mode _ as re), min, max) ->
         E_repeat(re, min, max)
     | E_repeat(E_group(E_literal lit as re), min, max) when Text.length lit = 1 ->
         E_repeat(re, min, max)
@@ -355,7 +362,7 @@ let simplify re =
         map (E_capture re)
     | E_capture(E_group re) ->
         map (E_capture re)
-    | E_group(E_epsilon | E_repeat _ | E_charset _ | E_posix _ | E_meta _ | E_backward_reference _ as re) ->
+    | E_group(E_epsilon | E_repeat _ | E_charset _ | E_posix _ | E_meta _ | E_backward_reference _ | E_mode _ as re) ->
         re
     | E_group(E_literal lit) when Text.length lit = 1 ->
         E_literal lit
@@ -382,6 +389,11 @@ let simplify re =
       re
   in
   loop re
+
+let string_of_mode = function
+  | Caseless -> "i"
+  | Multiline -> "m"
+  | Dot_all -> "s"
 
 let string_of_regexp re =
   let buffer = Buffer.create 42 in
@@ -445,6 +457,14 @@ let string_of_regexp re =
         add "\\g{";
         add (string_of_int n);
         add "}"
+    | E_mode(mode, true) ->
+        add "(?";
+        add (string_of_mode mode);
+        add ")"
+    | E_mode(mode, false) ->
+        add "(?-";
+        add (string_of_mode mode);
+        add ")"
   in
   loop (simplify re);
   Buffer.contents buffer
@@ -481,7 +501,7 @@ let global_env = ref(
 (* Return the list of bounded variables with their group number *)
 let collect_regexp_bindings ast =
   let rec loop n acc = function
-    | Epsilon _ | Literal _ | Variable _ | Charset _ | Meta _ | Backward_reference _ ->
+    | Epsilon _ | Literal _ | Variable _ | Charset _ | Meta _ | Backward_reference _ | Mode _ ->
         (n, acc)
     | Repeat(_, r, _, _) ->
         loop n acc r
