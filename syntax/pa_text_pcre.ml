@@ -16,6 +16,10 @@ let lookup tbl key =
   with
       Not_found -> None
 
+(* +-----------------------------------------------------------------+
+   | Literal escaping                                                |
+   +-----------------------------------------------------------------+ *)
+
 (* Escape special characters in literals *)
 let escape text =
   Text.map
@@ -26,6 +30,7 @@ let escape text =
            ch)
     text
 
+(* Same as [espace] but for text in charset (between "[" and "]"): *)
 let escape_in_charset text =
   Text.map
     (fun ch -> match ch with
@@ -326,11 +331,17 @@ let gen_id =
     nb := x + 1;
     prefix ^ string_of_int x
 
-let expand_regexp _loc _loc_name_opt quotation_contents =
+let expand_regexp _loc quotation_contents f =
   let ast = Gram.parse_string regexp_eoi _loc quotation_contents in
   let id = gen_id () in
   Hashtbl.add regexps id ast;
-  <:patt< $lid:id$ >>
+  f id
+
+let expand_patt_regexp _loc _loc_name_opt quotation_contents =
+  expand_regexp _loc quotation_contents (fun id -> <:patt< $lid:id$ >>)
+
+let expand_expr_regexp _loc _loc_name_opt quotation_contents =
+  expand_regexp _loc quotation_contents (fun id -> <:expr< $lid:id$ >>)
 
 (* +-----------------------------------------------------------------+
    | Code generation via ast filters                                 |
@@ -491,21 +502,31 @@ let rec map_match mapper global_regexp_collector = function
 class map global_regexp_collector = object(self)
   inherit Ast.map as super
 
-  method expr expr = match super#expr expr with
-    | <:expr@_loc< match $e$ with $mc$ >> as expr ->
-        let modified, mc = map_match self global_regexp_collector mc in
-        if modified then
-          <:expr< let __pa_text_pcre_result = ref [||] in match $e$ with $mc$ >>
-        else
+  method expr expr =
+    let expr = super#expr expr in
+    match expr with
+      | <:expr@_loc< match $e$ with $mc$ >> ->
+          let modified, mc = map_match self global_regexp_collector mc in
+          if modified then
+            <:expr< let __pa_text_pcre_result = ref [||] in match $e$ with $mc$ >>
+          else
+            expr
+      | <:expr@_loc< function $mc$ >> ->
+          let modified, mc = map_match self global_regexp_collector mc in
+          if modified then
+            <:expr< let __pa_text_pcre_result = ref [||] in function $mc$ >>
+          else
+            expr
+      | <:expr@_loc< $lid:id$ >> when is_special_id id -> begin
+          match lookup regexps id with
+            | Some regexp ->
+                let regexp_id = collect global_regexp_collector _loc (gen_compile_regexp _loc regexp) in
+                <:expr< Lazy.force $id:regexp_id$ >>
+            | None ->
+                expr
+        end
+      | expr ->
           expr
-    | <:expr@_loc< function $mc$ >> as expr ->
-        let modified, mc = map_match self global_regexp_collector mc in
-        if modified then
-          <:expr< let __pa_text_pcre_result = ref [||] in function $mc$ >>
-        else
-          expr
-    | expr ->
-        expr
 end
 
 (* map expressions:
@@ -611,7 +632,8 @@ let map_def = function
    +-----------------------------------------------------------------+ *)
 
 let () =
-  Quotation.add "re" Quotation.DynAst.patt_tag expand_regexp
+  Quotation.add "re" Quotation.DynAst.patt_tag expand_patt_regexp;
+  Quotation.add "re" Quotation.DynAst.expr_tag expand_expr_regexp;
   let map = (Ast.map_str_item map_def)#str_item in
   AstFilters.register_str_item_filter map;
   AstFilters.register_topphrase_filter map
