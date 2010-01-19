@@ -673,7 +673,7 @@ let rec map_binding new_env = function
         | Some regexp ->
             let expansed = expanse !global_env regexp in
             (Env.add id expansed new_env,
-             <:binding< $lid:id$ = Text_re.regexp $str:string_of_regexp expansed$ >>)
+             <:binding< $lid:id$ = Text_pcre.regexp $str:string_of_regexp expansed$ >>)
         | None ->
             (new_env, binding)
     end
