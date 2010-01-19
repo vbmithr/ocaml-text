@@ -329,6 +329,10 @@ let negate_class loc re =
   match re with
     | E_posix(str, negate) ->
         E_posix(str, not negate)
+    | E_meta ("\\h" | "\\v" | "\\b" as ch) ->
+        E_meta(Text.upper ch)
+    | E_meta ("\\H" | "\\V" | "\\B" as ch) ->
+        E_meta(Text.lower ch)
     | _ ->
         Loc.raise loc (Failure "can only negate posix classes")
 
@@ -578,6 +582,10 @@ let global_env = ref(
     ("space", E_posix("space", false));
     ("ascii", E_posix("ascii", false));
     ("word", E_posix("word", false));
+    ("newline", E_meta "\\R");
+    ("hspace", E_meta "\\h");
+    ("vspace", E_meta "\\v");
+    ("bound", E_meta "\\b");
     ("bol", E_meta "^");
     ("eol", E_meta "$");
   ]
