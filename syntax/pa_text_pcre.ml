@@ -19,6 +19,26 @@ let lookup tbl key =
 module Env = Map.Make(String)
 
 (* +-----------------------------------------------------------------+
+   | Unicode properties                                              |
+   +-----------------------------------------------------------------+ *)
+
+let uchar_properties = [
+  "C"; "Cc"; "Cf"; "Cn"; "Co"; "Cs";
+  "L"; "Ll"; "Lm"; "Lo"; "Lt"; "Lu"; "L&";
+  "M"; "Mc"; "Me"; "Mn";
+  "N"; "Nd"; "Nl"; "No";
+  "P"; "Pc"; "Pd"; "Pe"; "Pf"; "Pi"; "Po"; "Ps";
+  "S"; "Sc"; "Sk"; "Sm"; "So";
+  "Z"; "Zl"; "Zp"; "Zs";
+]
+
+let check_property loc name =
+  if List.mem name uchar_properties then
+    ()
+  else
+    Loc.raise loc (Failure(Printf.sprintf "invalid character property: %S" name))
+
+(* +-----------------------------------------------------------------+
    | Literal escaping                                                |
    +-----------------------------------------------------------------+ *)
 
@@ -161,15 +181,33 @@ EXTEND Gram
         [ "!"; id = LIDENT -> Backward_reference (_loc, id) ]
 
     | "simple" NONA
-        [ "["; cs = charset; "]" -> Charset(_loc, cs)
-        | "[^"; cs = charset; "]" -> Charset(_loc, Ca_verbatim(_loc, "^") :: cs)
-        | s = utf8_string -> if s = "" then Epsilon _loc else Literal(_loc, s)
-        | "_" -> Meta(_loc, ".")
-        | i = LIDENT -> Variable(_loc, i)
-        | "^" -> Meta(_loc, "^")
-        | "$" -> Meta(_loc, "$")
-        | "%"; name = LIDENT -> Bind(_loc, Epsilon _loc, name, Some Position)
-        | "("; r = SELF; ")" -> r
+        [ "["; cs = charset; "]" ->
+            Charset(_loc, cs)
+        | "[^"; cs = charset; "]" ->
+            Charset(_loc, Ca_verbatim(_loc, "^") :: cs)
+        | s = utf8_string ->
+            if s = "" then
+              Epsilon _loc
+            else
+              Literal(_loc, s)
+        | "_" ->
+            Meta(_loc, ".")
+        | i = LIDENT ->
+            Variable(_loc, i)
+        | "^" ->
+            Meta(_loc, "^")
+        | "$" ->
+            Meta(_loc, "$")
+        | prop = UIDENT ->
+            check_property _loc prop;
+            Meta(_loc, Printf.sprintf "\\p{%s}" prop)
+        | "~"; prop = UIDENT ->
+            check_property _loc prop;
+            Meta(_loc, Printf.sprintf "\\P{%s}" prop)
+        | "%"; name = LIDENT ->
+            Bind(_loc, Epsilon _loc, name, Some Position)
+        | "("; r = SELF; ")" ->
+            r
         ] ];
 
   regexp_eoi:
