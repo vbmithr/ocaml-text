@@ -180,56 +180,61 @@ let rec expanse = function
   | Alias _ -> assert false
 
 let simplify re =
-  (* Remove unnecessary groups: *)
-  let rec group re = match re with
+  let rec map re = match re with
+
+    (* Ecxpression that cannot be simplified: *)
     | E_epsilon | E_literal _ | E_any | E_charset _ ->
         re
+
+    (* Simplify concatenations: *)
+    | E_concat(E_literal lit1, E_literal lit2) ->
+        E_literal(lit1 ^ lit2)
+    | E_concat(E_epsilon, (E_literal _ as re))
+    | E_concat((E_literal _ as re), E_epsilon) ->
+        re
+    | E_concat(E_group r1, E_group r2)
+    | E_concat(r1, E_group r2)
+    | E_concat(E_group r1, r2) ->
+        E_concat(r1, r2)
+
+    (* Simplify stupid regexp: *)
+    | E_repeat(E_epsilon, _, _) ->
+        E_epsilon
+
+    (* Group merging *)
     | E_repeat(E_group(E_epsilon | E_any | E_charset _ as re), min, max) ->
         E_repeat(re, min, max)
     | E_repeat(E_group(E_literal lit as re), min, max) when Text.length lit = 1 ->
         E_repeat(re, min, max)
     | E_repeat(r, min, max) ->
-        E_repeat(group r, min, max)
+        E_repeat(map r, min, max)
     | E_group(E_group re) ->
-        group (E_group re)
+        map (E_group re)
     | E_group(E_capture re) ->
-        group (E_capture re)
+        map (E_capture re)
     | E_capture(E_group re) ->
-        group (E_capture re)
+        map (E_capture re)
     | E_group(E_epsilon | E_any | E_repeat _ | E_charset _ as re) ->
         re
     | E_group(E_literal lit) when Text.length lit = 1 ->
         E_literal lit
     | E_group re ->
-        E_group(group re)
+        E_group(map re)
     | E_capture re ->
-        E_capture(group re)
+        E_capture(map re)
     | E_alternative(r1, r2) ->
-        E_alternative(group r1, group r2)
+        E_alternative(map r1, map r2)
     | E_concat(r1, r2) ->
-        E_concat(group r1, group r2)
-
-  (* Concat what is concatenable: *)
-  and concat re = match re with
-    | E_concat(E_literal lit1, E_literal lit2) ->
-        E_literal(lit1 ^ lit2)
-    | E_epsilon | E_literal _ | E_any | E_charset _ ->
-        re
-    | E_group re ->
-        E_group(concat re)
-    | E_capture re ->
-        E_capture(concat re)
-    | E_repeat(r, min, max) ->
-        E_repeat(concat r, min, max)
-    | E_concat(r1, r2) ->
-        E_concat(concat r1, concat r2)
-    | E_alternative(r1, r2) ->
-        E_alternative(concat r1, concat r2)
+        E_concat(map r1, map r2)
   in
-
+  (* Remove toplevel groups: *)
+  let top_map = function
+    | E_group re -> re
+    | re -> re
+  in
   (* Simplify until we reach a fix-point: *)
   let rec loop re =
-    let re' = concat (group re) in
+    let re' = top_map (map re) in
     if re <> re' then
       loop re'
     else
