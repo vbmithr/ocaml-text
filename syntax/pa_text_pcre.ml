@@ -67,6 +67,7 @@ type regexp =
   | Charset of Ast.loc * charset
   | Meta of Ast.loc * Text.t
   | Variable of Ast.loc * string
+  | Backward_reference of Ast.loc * string
 
 let star loc regexp = Repeat(loc, regexp, 0, None)
 let plus loc regexp = Repeat(loc, regexp, 1, None)
@@ -82,6 +83,7 @@ let loc_of_regexp = function
   | Variable(l, _) -> l
   | Charset(l, _) -> l
   | Meta(l, _) -> l
+  | Backward_reference(l, _) -> l
 
 (* +-----------------------------------------------------------------+
    | Regular expression parsing                                      |
@@ -155,6 +157,9 @@ EXTEND Gram
         | r = SELF; "?" -> opt _loc r
         | r = SELF; "{"; (a, b) = range; "}" -> Repeat(_loc, r, a, b) ]
 
+    | "preop" NONA
+        [ "!"; id = LIDENT -> Backward_reference (_loc, id) ]
+
     | "simple" NONA
         [ "["; cs = charset; "]" -> Charset(_loc, cs)
         | "[^"; cs = charset; "]" -> Charset(_loc, Ca_verbatim(_loc, "^") :: cs)
@@ -185,53 +190,77 @@ type expansed_regexp =
   | E_alternative of expansed_regexp * expansed_regexp
   | E_charset of Text.t
   | E_meta of Text.t
+  | E_backward_reference of int
 
-let rec expanse env = function
-  | Epsilon _ ->
-      E_epsilon
-  | Literal(_, lit) ->
-      E_literal lit
-  | Repeat(_, r, min, max) ->
-      E_repeat(E_group(expanse env r), min, max)
-  | Concat(_, r1, r2) ->
-      E_concat(E_group(expanse env r1), E_group(expanse env r2))
-  | Alternative(_, r1, r2) ->
-      E_alternative(E_group(expanse env r1), E_group(expanse env r2))
-  | Bind(_, r, _, _) ->
-      E_capture(E_group(expanse env r))
-  | Charset(_, cs) -> begin
-      let buf = Buffer.create 42 in
-      List.iter
-        (function
-           | Ca_verbatim(_loc, str) ->
-               Buffer.add_string buf str
-           | Ca_variable(_loc, var) ->
-               try
-                 match Env.find var env with
-                   | E_charset str ->
-                       Buffer.add_string buf str
-                   | E_literal txt ->
-                       Buffer.add_string buf (escape_in_charset txt)
-                   | _ ->
-                       Loc.raise _loc (Failure(var ^ " is not a charset or a literal"))
-               with Not_found ->
-                 Loc.raise _loc (Failure("unbounded variable: " ^ var)))
-        cs;
-      E_charset(Buffer.contents buf)
-    end
-  | Meta(_, text) ->
-      E_meta text
-  | Variable(loc, id) ->
-      try
-        Env.find id env
-      with Not_found ->
-        Loc.raise loc (Failure("unbounded variable: " ^ id))
+(* [expanse] convert a regular expression ast to a simpler
+   ast. Variables in pattern are resolved by using the environment
+   [env]. *)
+let expanse env ast =
+  (* [vars] is the mapping from capture to their index, and [n] is the
+     next available index: *)
+  let rec loop vars n = function
+    | Epsilon _ ->
+        (vars, n, E_epsilon)
+    | Literal(_, lit) ->
+        (vars, n, E_literal lit)
+    | Repeat(_, r, min, max) ->
+        let vars, n, r = loop vars n r in
+        (vars, n, E_repeat(E_group r, min, max))
+    | Concat(_, r1, r2) ->
+        let vars, n, r1 = loop vars n r1 in
+        let vars, n, r2 = loop vars n r2 in
+        (vars, n, E_concat(E_group r1, E_group r2))
+    | Alternative(_, r1, r2) ->
+        let vars, n, r1 = loop vars n r1 in
+        let vars, n, r2 = loop vars n r2 in
+        (vars, n, E_alternative(E_group r1, E_group r2))
+    | Bind(_, r, id, _) ->
+        let vars = Env.add id n vars in
+        let vars, n, r = loop vars (n + 1) r in
+        (vars, n, E_capture(E_group r))
+    | Charset(_, cs) -> begin
+        let buf = Buffer.create 42 in
+        List.iter
+          (function
+             | Ca_verbatim(_loc, str) ->
+                 Buffer.add_string buf str
+             | Ca_variable(_loc, var) ->
+                 try
+                   match Env.find var env with
+                     | E_charset str ->
+                         Buffer.add_string buf str
+                     | E_literal txt ->
+                         Buffer.add_string buf (escape_in_charset txt)
+                     | _ ->
+                         Loc.raise _loc (Failure(var ^ " is not a charset or a literal"))
+                 with Not_found ->
+                   Loc.raise _loc (Failure("unbounded variable: " ^ var)))
+          cs;
+        (vars, n, E_charset(Buffer.contents buf))
+      end
+    | Meta(_, text) ->
+        (vars, n, E_meta text)
+    | Variable(loc, id) -> begin
+        try
+          (vars, n, Env.find id env)
+        with Not_found ->
+          Loc.raise loc (Failure("unbounded variable: " ^ id))
+      end
+    | Backward_reference(loc, id) -> begin
+        try
+          (vars, n, E_backward_reference(Env.find id vars))
+        with Not_found ->
+          Loc.raise loc (Failure "invalid backward reference")
+      end
+  in
+  let vars, n, re = loop Env.empty 1 ast in
+  re
 
 let simplify re =
   let rec map re = match re with
 
     (* Ecxpression that cannot be simplified: *)
-    | E_epsilon | E_literal _ | E_charset _ | E_meta _ ->
+    | E_epsilon | E_literal _ | E_charset _ | E_meta _ | E_backward_reference _ ->
         re
 
     (* Simplify concatenations: *)
@@ -250,7 +279,7 @@ let simplify re =
         E_epsilon
 
     (* Group merging *)
-    | E_repeat(E_group(E_epsilon | E_charset _ | E_meta _ as re), min, max) ->
+    | E_repeat(E_group(E_epsilon | E_charset _ | E_meta _ | E_backward_reference _ as re), min, max) ->
         E_repeat(re, min, max)
     | E_repeat(E_group(E_literal lit as re), min, max) when Text.length lit = 1 ->
         E_repeat(re, min, max)
@@ -262,7 +291,7 @@ let simplify re =
         map (E_capture re)
     | E_capture(E_group re) ->
         map (E_capture re)
-    | E_group(E_epsilon | E_repeat _ | E_charset _ | E_meta _ as re) ->
+    | E_group(E_epsilon | E_repeat _ | E_charset _ | E_meta _ | E_backward_reference _ as re) ->
         re
     | E_group(E_literal lit) when Text.length lit = 1 ->
         E_literal lit
@@ -340,6 +369,10 @@ let string_of_regexp re =
         add "]"
     | E_meta t ->
         add t
+    | E_backward_reference n ->
+        add "\\g{";
+        add (string_of_int n);
+        add "}"
   in
   loop (simplify re);
   Buffer.contents buffer
@@ -374,7 +407,7 @@ let global_env = ref(
 (* Return the list of bounded variables with their group number *)
 let collect_regexp_bindings ast =
   let rec loop n acc = function
-    | Epsilon _ | Literal _ | Variable _ | Charset _ | Meta _ ->
+    | Epsilon _ | Literal _ | Variable _ | Charset _ | Meta _ | Backward_reference _ ->
         (n, acc)
     | Repeat(_, r, _, _) ->
         loop n acc r
@@ -388,18 +421,6 @@ let collect_regexp_bindings ast =
         loop (n + 1) ((_loc, id, n, conv) :: acc) r
   in
   snd (loop 1 [] ast)
-
-(* Returns whether the given regular expression contains bindings *)
-let rec contains_bindings = function
-  | Epsilon _ | Literal _ | Variable _ | Charset _ | Meta _ ->
-      false
-  | Repeat(_, r, _, _) ->
-      contains_bindings r
-  | Concat(_, r1, r2)
-  | Alternative(_, r1, r2) ->
-      contains_bindings r1 || contains_bindings r2
-  | Bind(_loc, r, id, conv) ->
-      true
 
 (* +-----------------------------------------------------------------+
    | Quotation expansion                                             |
@@ -426,13 +447,9 @@ let expand_patt_regexp _loc _loc_name_opt quotation_contents =
 
 let expand_expr_regexp _loc _loc_name_opt quotation_contents =
   let ast = Gram.parse_string regexp_eoi _loc quotation_contents in
-  if contains_bindings ast then
-    Loc.raise _loc (Failure "bindings are not allowed in expression")
-  else begin
-    let id = gen_id () in
-    Hashtbl.add regexps id ast;
-    <:expr< $lid:id$ >>
-  end
+  let id = gen_id () in
+  Hashtbl.add regexps id ast;
+  <:expr< $lid:id$ >>
 
 (* +-----------------------------------------------------------------+
    | Code generation via ast filters                                 |
