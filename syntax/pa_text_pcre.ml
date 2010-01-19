@@ -439,6 +439,8 @@ let global_env = ref(
     ("cntrl", E_charset "[:cntrl:]");
     ("xdigit", E_charset "[:xdigit:]");
     ("space", E_charset "[:space:]");
+    ("ascii", E_charset "[:ascii:]");
+    ("word", E_charset "[:word:]");
     ("bol", E_meta "^");
     ("eol", E_meta "$");
   ]
