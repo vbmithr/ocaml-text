@@ -51,6 +51,12 @@ type converter =
   | Function of Ast.expr
   | Position
 
+type charset_atom =
+  | Ca_variable of Ast.loc * string
+  | Ca_verbatim of Ast.loc * string
+
+type charset = charset_atom list
+
 type regexp =
   | Epsilon of Ast.loc
   | Literal of Ast.loc * string
@@ -58,9 +64,9 @@ type regexp =
   | Concat of Ast.loc * regexp * regexp
   | Alternative of Ast.loc * regexp * regexp
   | Bind of Ast.loc * regexp * string * converter option
-  | Charset of Ast.loc * Text.t
+  | Charset of Ast.loc * charset
   | Meta of Ast.loc * Text.t
-  | Alias of Ast.loc * string
+  | Variable of Ast.loc * string
 
 let star loc regexp = Repeat(loc, regexp, 0, None)
 let plus loc regexp = Repeat(loc, regexp, 1, None)
@@ -73,7 +79,7 @@ let loc_of_regexp = function
   | Concat(l, _, _) -> l
   | Alternative(l, _, _) -> l
   | Bind(l, _, _, _) -> l
-  | Alias(l, _) -> l
+  | Variable(l, _) -> l
   | Charset(l, _) -> l
   | Meta(l, _) -> l
 
@@ -113,20 +119,25 @@ EXTEND Gram
           if a < 0 then
             Loc.raise _loc (Failure "range bounds must be positive number")
           else
-            (a, None) ] ];
+            (a, None)
+      ] ];
 
-  charset:
+  charset_atom:
     [ [ a = utf8_string; ["-" | ".."]; b = utf8_string ->
           if Text.length a <> 1 || Text.length b <> 1 then
             Loc.raise _loc (Failure("UTF-8 string literals in charset range must contain only one unicode character"))
           else if Text.code a < Text.code b then
-            escape_in_charset a ^ "-" ^ escape_in_charset b
+            Ca_verbatim (_loc, escape_in_charset a ^ "-" ^ escape_in_charset b)
           else
             Loc.raise _loc (Failure "invalid charset: the upper limit must be greater than the lower limit")
       | s = utf8_string ->
-          escape_in_charset s
-      | a = SELF; b = SELF ->
-          a ^ b ] ];
+          Ca_verbatim(_loc, escape_in_charset s)
+      | id = LIDENT ->
+          Ca_variable(_loc, id)
+      ] ];
+
+  charset:
+    [ [ l = LIST0 charset_atom -> l ] ];
 
   regexp:
     [ [ r = SELF; "as"; i = LIDENT;
@@ -145,11 +156,11 @@ EXTEND Gram
         | r = SELF; "{"; (a, b) = range; "}" -> Repeat(_loc, r, a, b) ]
 
     | "simple" NONA
-        [ "["; set = charset; "]" -> Charset(_loc, set)
-        | "[^"; set = charset; "]" -> Charset(_loc, "^" ^ set)
+        [ "["; cs = charset; "]" -> Charset(_loc, cs)
+        | "[^"; cs = charset; "]" -> Charset(_loc, Ca_verbatim(_loc, "^") :: cs)
         | s = utf8_string -> if s = "" then Epsilon _loc else Literal(_loc, s)
         | "_" -> Meta(_loc, ".")
-        | i = LIDENT -> Alias(_loc, i)
+        | i = LIDENT -> Variable(_loc, i)
         | "^" -> Meta(_loc, "^")
         | "$" -> Meta(_loc, "$")
         | "%"; name = LIDENT -> Bind(_loc, Epsilon _loc, name, Some Position)
@@ -188,11 +199,29 @@ let rec expanse env = function
       E_alternative(E_group(expanse env r1), E_group(expanse env r2))
   | Bind(_, r, _, _) ->
       E_capture(E_group(expanse env r))
-  | Charset(_, text) ->
-      E_charset text
+  | Charset(_, cs) -> begin
+      let buf = Buffer.create 42 in
+      List.iter
+        (function
+           | Ca_verbatim(_loc, str) ->
+               Buffer.add_string buf str
+           | Ca_variable(_loc, var) ->
+               try
+                 match Env.find var env with
+                   | E_charset str ->
+                       Buffer.add_string buf str
+                   | E_literal txt ->
+                       Buffer.add_string buf (escape_in_charset txt)
+                   | _ ->
+                       Loc.raise _loc (Failure(var ^ " is not a charset or a literal"))
+               with Not_found ->
+                 Loc.raise _loc (Failure("unbounded variable: " ^ var)))
+        cs;
+      E_charset(Buffer.contents buf)
+    end
   | Meta(_, text) ->
       E_meta text
-  | Alias(loc, id) ->
+  | Variable(loc, id) ->
       try
         Env.find id env
       with Not_found ->
@@ -345,7 +374,7 @@ let global_env = ref(
 (* Return the list of bounded variables with their group number *)
 let collect_regexp_bindings ast =
   let rec loop n acc = function
-    | Epsilon _ | Literal _ | Alias _ | Charset _ | Meta _ ->
+    | Epsilon _ | Literal _ | Variable _ | Charset _ | Meta _ ->
         (n, acc)
     | Repeat(_, r, _, _) ->
         loop n acc r
@@ -362,7 +391,7 @@ let collect_regexp_bindings ast =
 
 (* Returns whether the given regular expression contains bindings *)
 let rec contains_bindings = function
-  | Epsilon _ | Literal _ | Alias _ | Charset _ | Meta _ ->
+  | Epsilon _ | Literal _ | Variable _ | Charset _ | Meta _ ->
       false
   | Repeat(_, r, _, _) ->
       contains_bindings r
