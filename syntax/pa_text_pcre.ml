@@ -72,7 +72,7 @@ type converter =
   | Position
 
 type charset_atom =
-  | Ca_variable of Ast.loc * string
+  | Ca_variable of Ast.loc * string * bool (* negate *)
   | Ca_verbatim of Ast.loc * string
 
 type charset = charset_atom list
@@ -84,9 +84,9 @@ type regexp =
   | Concat of Ast.loc * regexp * regexp
   | Alternative of Ast.loc * regexp * regexp
   | Bind of Ast.loc * regexp * string * converter option
-  | Charset of Ast.loc * charset
+  | Charset of Ast.loc * charset * bool (* negate *)
   | Meta of Ast.loc * Text.t
-  | Variable of Ast.loc * string
+  | Variable of Ast.loc * string * bool (* negate *)
   | Backward_reference of Ast.loc * string
 
 let star loc regexp = Repeat(loc, regexp, 0, None)
@@ -100,8 +100,8 @@ let loc_of_regexp = function
   | Concat(l, _, _) -> l
   | Alternative(l, _, _) -> l
   | Bind(l, _, _, _) -> l
-  | Variable(l, _) -> l
-  | Charset(l, _) -> l
+  | Variable(l, _, _) -> l
+  | Charset(l, _, _) -> l
   | Meta(l, _) -> l
   | Backward_reference(l, _) -> l
 
@@ -155,7 +155,9 @@ EXTEND Gram
       | s = utf8_string ->
           Ca_verbatim(_loc, escape_in_charset s)
       | id = LIDENT ->
-          Ca_variable(_loc, id)
+          Ca_variable(_loc, id, false)
+      | "~"; id = LIDENT ->
+          Ca_variable(_loc, id, true)
       | prop = UIDENT ->
           check_property _loc prop;
           Ca_verbatim(_loc, Printf.sprintf "\\p{%s}" prop)
@@ -188,9 +190,9 @@ EXTEND Gram
 
     | "simple" NONA
         [ "["; cs = charset; "]" ->
-            Charset(_loc, cs)
+            Charset(_loc, cs, false)
         | "[^"; cs = charset; "]" ->
-            Charset(_loc, Ca_verbatim(_loc, "^") :: cs)
+            Charset(_loc, cs, true)
         | s = utf8_string ->
             if s = "" then
               Epsilon _loc
@@ -199,7 +201,9 @@ EXTEND Gram
         | "_" ->
             Meta(_loc, ".")
         | i = LIDENT ->
-            Variable(_loc, i)
+            Variable(_loc, i, false)
+        | "~"; i = LIDENT ->
+            Variable(_loc, i, true)
         | "^" ->
             Meta(_loc, "^")
         | "$" ->
@@ -233,8 +237,16 @@ type expansed_regexp =
   | E_concat of expansed_regexp * expansed_regexp
   | E_alternative of expansed_regexp * expansed_regexp
   | E_charset of Text.t
+  | E_posix of Text.t * bool (* negate *)
   | E_meta of Text.t
   | E_backward_reference of int
+
+let negate_class loc re =
+  match re with
+    | E_posix(str, negate) ->
+        E_posix(str, not negate)
+    | _ ->
+        Loc.raise loc (Failure "can only negate posix classes")
 
 (* [expanse] convert a regular expression ast to a simpler
    ast. Variables in pattern are resolved by using the environment
@@ -262,15 +274,21 @@ let expanse env ast =
         let vars = Env.add id n vars in
         let vars, n, r = loop vars (n + 1) r in
         (vars, n, E_capture(E_group r))
-    | Charset(_, cs) -> begin
+    | Charset(_, cs, negate) -> begin
         let buf = Buffer.create 42 in
         List.iter
           (function
              | Ca_verbatim(_loc, str) ->
                  Buffer.add_string buf str
-             | Ca_variable(_loc, var) ->
+             | Ca_variable(_loc, var, negate) ->
                  try
-                   match Env.find var env with
+                   let re = Env.find var env in
+                   let re = if negate then negate_class _loc re else re in
+                   match re with
+                     | E_posix(name, false) ->
+                         Printf.bprintf buf "[:%s:]" name
+                     | E_posix(name, true) ->
+                         Printf.bprintf buf "[:^%s:]" name
                      | E_charset str ->
                          Buffer.add_string buf str
                      | E_literal txt ->
@@ -284,9 +302,11 @@ let expanse env ast =
       end
     | Meta(_, text) ->
         (vars, n, E_meta text)
-    | Variable(loc, id) -> begin
+    | Variable(loc, id, negate) -> begin
         try
-          (vars, n, Env.find id env)
+          let re = Env.find id env in
+          let re = if negate then negate_class loc re else re in
+          (vars, n, re)
         with Not_found ->
           Loc.raise loc (Failure("unbounded variable: " ^ id))
       end
@@ -304,7 +324,7 @@ let simplify re =
   let rec map re = match re with
 
     (* Ecxpression that cannot be simplified: *)
-    | E_epsilon | E_literal _ | E_charset _ | E_meta _ | E_backward_reference _ ->
+    | E_epsilon | E_literal _ | E_charset _ | E_posix _ | E_meta _ | E_backward_reference _ ->
         re
 
     (* Simplify concatenations: *)
@@ -323,7 +343,7 @@ let simplify re =
         E_epsilon
 
     (* Group merging *)
-    | E_repeat(E_group(E_epsilon | E_charset _ | E_meta _ | E_backward_reference _ as re), min, max) ->
+    | E_repeat(E_group(E_epsilon | E_charset _ | E_posix _ | E_meta _ | E_backward_reference _ as re), min, max) ->
         E_repeat(re, min, max)
     | E_repeat(E_group(E_literal lit as re), min, max) when Text.length lit = 1 ->
         E_repeat(re, min, max)
@@ -335,7 +355,7 @@ let simplify re =
         map (E_capture re)
     | E_capture(E_group re) ->
         map (E_capture re)
-    | E_group(E_epsilon | E_repeat _ | E_charset _ | E_meta _ | E_backward_reference _ as re) ->
+    | E_group(E_epsilon | E_repeat _ | E_charset _ | E_posix _ | E_meta _ | E_backward_reference _ as re) ->
         re
     | E_group(E_literal lit) when Text.length lit = 1 ->
         E_literal lit
@@ -411,6 +431,14 @@ let string_of_regexp re =
         add "[";
         add c;
         add "]"
+    | E_posix(c, false) ->
+        add "[[:";
+        add c;
+        add ":]]"
+    | E_posix(c, true) ->
+        add "[[:^";
+        add c;
+        add ":]]"
     | E_meta t ->
         add t
     | E_backward_reference n ->
@@ -427,20 +455,20 @@ let string_of_regexp re =
 
 let global_env = ref(
   List.fold_left (fun env (id, exp_regexp) -> Env.add id exp_regexp env) Env.empty [
-    ("lower", E_charset "[:lower:]");
-    ("upper", E_charset "[:upper:]");
-    ("alpha", E_charset "[:alpha:]");
-    ("digit", E_charset "[:digit:]");
-    ("alnum", E_charset "[:alnum:]");
-    ("punct", E_charset "[:punct:]");
-    ("graph", E_charset "[:graph:]");
-    ("print", E_charset "[:print:]");
-    ("blank", E_charset "[:blank:]");
-    ("cntrl", E_charset "[:cntrl:]");
-    ("xdigit", E_charset "[:xdigit:]");
-    ("space", E_charset "[:space:]");
-    ("ascii", E_charset "[:ascii:]");
-    ("word", E_charset "[:word:]");
+    ("lower", E_posix("lower", false));
+    ("upper", E_posix("upper", false));
+    ("alpha", E_posix("alpha", false));
+    ("digit", E_posix("digit", false));
+    ("alnum", E_posix("alnum", false));
+    ("punct", E_posix("punct", false));
+    ("graph", E_posix("graph", false));
+    ("print", E_posix("print", false));
+    ("blank", E_posix("blank", false));
+    ("cntrl", E_posix("cntrl", false));
+    ("xdigit", E_posix("xdigit", false));
+    ("space", E_posix("space", false));
+    ("ascii", E_posix("ascii", false));
+    ("word", E_posix("word", false));
     ("bol", E_meta "^");
     ("eol", E_meta "$");
   ]
