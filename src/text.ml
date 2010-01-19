@@ -427,7 +427,7 @@ let is_print = for_all_code ml_is_print
 let is_punct = for_all_code ml_is_punct
 let is_space = for_all_code ml_is_space
 let is_upper = for_all_code ml_is_upper
-let is_digit = for_all_code ml_is_digit
+let is_xdigit = for_all_code ml_is_xdigit
 
 (* +-----------------------------------------------------------------+
    | Searching, Splitting, ...                                       |
