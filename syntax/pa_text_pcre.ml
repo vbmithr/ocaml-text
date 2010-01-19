@@ -16,6 +16,8 @@ let lookup tbl key =
   with
       Not_found -> None
 
+module Env = Map.Make(String)
+
 (* +-----------------------------------------------------------------+
    | Literal escaping                                                |
    +-----------------------------------------------------------------+ *)
@@ -52,12 +54,12 @@ type converter =
 type regexp =
   | Epsilon of Ast.loc
   | Literal of Ast.loc * string
-  | Any of Ast.loc
   | Repeat of Ast.loc * regexp * int (* minimum *) * int option (* maximum *)
   | Concat of Ast.loc * regexp * regexp
   | Alternative of Ast.loc * regexp * regexp
   | Bind of Ast.loc * regexp * string * converter option
   | Charset of Ast.loc * Text.t
+  | Meta of Ast.loc * Text.t
   | Alias of Ast.loc * string
 
 let star loc regexp = Repeat(loc, regexp, 0, None)
@@ -67,13 +69,13 @@ let opt loc regexp = Repeat(loc, regexp, 0, Some 1)
 let loc_of_regexp = function
   | Epsilon l -> l
   | Literal(l, _) -> l
-  | Any l -> l
   | Repeat(l, _, _, _) -> l
   | Concat(l, _, _) -> l
   | Alternative(l, _, _) -> l
   | Bind(l, _, _, _) -> l
   | Alias(l, _) -> l
   | Charset(l, _) -> l
+  | Meta(l, _) -> l
 
 (* +-----------------------------------------------------------------+
    | Regular expression parsing                                      |
@@ -146,10 +148,10 @@ EXTEND Gram
         [ "["; set = charset; "]" -> Charset(_loc, set)
         | "[^"; set = charset; "]" -> Charset(_loc, "^" ^ set)
         | s = utf8_string -> if s = "" then Epsilon _loc else Literal(_loc, s)
-        | "_" -> Any _loc
+        | "_" -> Meta(_loc, ".")
         | i = LIDENT -> Alias(_loc, i)
-        | "^" -> Alias(_loc, "^")
-        | "$" -> Alias(_loc, "$")
+        | "^" -> Meta(_loc, "^")
+        | "$" -> Meta(_loc, "$")
         | "%"; name = LIDENT -> Bind(_loc, Epsilon _loc, name, Some Position)
         | "("; r = SELF; ")" -> r
         ] ];
@@ -167,28 +169,40 @@ type expansed_regexp =
   | E_literal of Text.t
   | E_group of expansed_regexp
   | E_capture of expansed_regexp
-  | E_any
   | E_repeat of expansed_regexp * int * int option
   | E_concat of expansed_regexp * expansed_regexp
   | E_alternative of expansed_regexp * expansed_regexp
   | E_charset of Text.t
+  | E_meta of Text.t
 
-let rec expanse = function
-  | Epsilon _ -> E_epsilon
-  | Literal(_, lit) -> E_literal lit
-  | Any _ -> E_any
-  | Repeat(_, r, min, max) -> E_repeat(E_group(expanse r), min, max)
-  | Concat(_, r1, r2) -> E_concat(E_group(expanse r1), E_group(expanse r2))
-  | Alternative(_, r1, r2) -> E_alternative(E_group(expanse r1), E_group(expanse r2))
-  | Bind(_, r, _, _) -> E_capture(E_group(expanse r))
-  | Charset(_, text) -> E_charset text
-  | Alias _ -> assert false
+let rec expanse env = function
+  | Epsilon _ ->
+      E_epsilon
+  | Literal(_, lit) ->
+      E_literal lit
+  | Repeat(_, r, min, max) ->
+      E_repeat(E_group(expanse env r), min, max)
+  | Concat(_, r1, r2) ->
+      E_concat(E_group(expanse env r1), E_group(expanse env r2))
+  | Alternative(_, r1, r2) ->
+      E_alternative(E_group(expanse env r1), E_group(expanse env r2))
+  | Bind(_, r, _, _) ->
+      E_capture(E_group(expanse env r))
+  | Charset(_, text) ->
+      E_charset text
+  | Meta(_, text) ->
+      E_meta text
+  | Alias(loc, id) ->
+      try
+        Env.find id env
+      with Not_found ->
+        Loc.raise loc (Failure("unbounded variable: " ^ id))
 
 let simplify re =
   let rec map re = match re with
 
     (* Ecxpression that cannot be simplified: *)
-    | E_epsilon | E_literal _ | E_any | E_charset _ ->
+    | E_epsilon | E_literal _ | E_charset _ | E_meta _ ->
         re
 
     (* Simplify concatenations: *)
@@ -207,7 +221,7 @@ let simplify re =
         E_epsilon
 
     (* Group merging *)
-    | E_repeat(E_group(E_epsilon | E_any | E_charset _ as re), min, max) ->
+    | E_repeat(E_group(E_epsilon | E_charset _ | E_meta _ as re), min, max) ->
         E_repeat(re, min, max)
     | E_repeat(E_group(E_literal lit as re), min, max) when Text.length lit = 1 ->
         E_repeat(re, min, max)
@@ -219,7 +233,7 @@ let simplify re =
         map (E_capture re)
     | E_capture(E_group re) ->
         map (E_capture re)
-    | E_group(E_epsilon | E_any | E_repeat _ | E_charset _ as re) ->
+    | E_group(E_epsilon | E_repeat _ | E_charset _ | E_meta _ as re) ->
         re
     | E_group(E_literal lit) when Text.length lit = 1 ->
         E_literal lit
@@ -263,8 +277,15 @@ let string_of_regexp re =
         add "(";
         loop re;
         add ")"
-    | E_any ->
-        add "."
+    | E_repeat(re, 0, None) ->
+        loop re;
+        add "*"
+    | E_repeat(re, 1, None) ->
+        loop re;
+        add "+"
+    | E_repeat(re, 0, Some 1) ->
+        loop re;
+        add "?"
     | E_repeat(re, min, Some max) ->
         loop re;
         add "{";
@@ -288,9 +309,34 @@ let string_of_regexp re =
         add "[";
         add c;
         add "]"
+    | E_meta t ->
+        add t
   in
-  loop (simplify (expanse re));
+  loop (simplify re);
   Buffer.contents buffer
+
+(* +-----------------------------------------------------------------+
+   | Initial environment                                             |
+   +-----------------------------------------------------------------+ *)
+
+let global_env = ref(
+  List.fold_left (fun env (id, exp_regexp) -> Env.add id exp_regexp env) Env.empty [
+    ("lower", E_charset "[:lower:]");
+    ("upper", E_charset "[:upper:]");
+    ("alpha", E_charset "[:alpha:]");
+    ("digit", E_charset "[:digit:]");
+    ("alnum", E_charset "[:alnum:]");
+    ("punct", E_charset "[:punct:]");
+    ("graph", E_charset "[:graph:]");
+    ("print", E_charset "[:print:]");
+    ("blank", E_charset "[:blank:]");
+    ("cntrl", E_charset "[:cntrl:]");
+    ("xdigit", E_charset "[:xdigit:]");
+    ("space", E_charset "[:space:]");
+    ("bol", E_meta "^");
+    ("eol", E_meta "$");
+  ]
+)
 
 (* +-----------------------------------------------------------------+
    | Regular expressions processing                                  |
@@ -299,20 +345,32 @@ let string_of_regexp re =
 (* Return the list of bounded variables with their group number *)
 let collect_regexp_bindings ast =
   let rec loop n acc = function
-    | Epsilon _ | Literal _| Any _ | Alias _ | Charset _ ->
+    | Epsilon _ | Literal _ | Alias _ | Charset _ | Meta _ ->
         (n, acc)
     | Repeat(_, r, _, _) ->
         loop n acc r
     | Concat(_, r1, r2) ->
         let n, acc = loop n acc r1 in
         loop n acc r2
-    | Alternative(l, r1, r2) ->
+    | Alternative(_, r1, r2) ->
         let n, acc = loop n acc r1 in
         loop n acc r2
     | Bind(_loc, r, id, conv) ->
         loop (n + 1) ((_loc, id, n, conv) :: acc) r
   in
   snd (loop 1 [] ast)
+
+(* Returns whether the given regular expression contains bindings *)
+let rec contains_bindings = function
+  | Epsilon _ | Literal _ | Alias _ | Charset _ | Meta _ ->
+      false
+  | Repeat(_, r, _, _) ->
+      contains_bindings r
+  | Concat(_, r1, r2)
+  | Alternative(_, r1, r2) ->
+      contains_bindings r1 || contains_bindings r2
+  | Bind(_loc, r, id, conv) ->
+      true
 
 (* +-----------------------------------------------------------------+
    | Quotation expansion                                             |
@@ -331,17 +389,21 @@ let gen_id =
     nb := x + 1;
     prefix ^ string_of_int x
 
-let expand_regexp _loc quotation_contents f =
+let expand_patt_regexp _loc _loc_name_opt quotation_contents =
   let ast = Gram.parse_string regexp_eoi _loc quotation_contents in
   let id = gen_id () in
   Hashtbl.add regexps id ast;
-  f id
-
-let expand_patt_regexp _loc _loc_name_opt quotation_contents =
-  expand_regexp _loc quotation_contents (fun id -> <:patt< $lid:id$ >>)
+  <:patt< $lid:id$ >>
 
 let expand_expr_regexp _loc _loc_name_opt quotation_contents =
-  expand_regexp _loc quotation_contents (fun id -> <:expr< $lid:id$ >>)
+  let ast = Gram.parse_string regexp_eoi _loc quotation_contents in
+  if contains_bindings ast then
+    Loc.raise _loc (Failure "bindings are not allowed in expression")
+  else begin
+    let id = gen_id () in
+    Hashtbl.add regexps id ast;
+    <:expr< $lid:id$ >>
+  end
 
 (* +-----------------------------------------------------------------+
    | Code generation via ast filters                                 |
@@ -380,14 +442,14 @@ let is_special_id id =
   aux1 0
 
 (* Generate the expression for the given regular expression: *)
-let gen_compile_regexp _loc regexp =
-  <:expr< lazy(Text_pcre.regexp $str:string_of_regexp regexp$) >>
+let gen_compile_regexp _loc env regexp =
+  <:expr< lazy(Text_pcre.regexp $str:string_of_regexp (expanse env regexp)$) >>
 
 (* Collects all regular expressions in the pattern of a match case
    branch. [global_regexp_collector] collect all regular expression
    found in the toplevel expression, and [local_regexp_collector]
    collects all regular expression of the current branch. *)
-class map_pattern global_regexp_collector local_regexp_collector = object
+class map_pattern env global_regexp_collector local_regexp_collector = object
   inherit Ast.map as super
 
   method patt p = match super#patt p with
@@ -395,7 +457,7 @@ class map_pattern global_regexp_collector local_regexp_collector = object
         match lookup regexps id with
           | Some regexp ->
               (* [regexp_id] is the variable which will appears at the toplevel: *)
-              let regexp_id = collect global_regexp_collector _loc (gen_compile_regexp _loc regexp) in
+              let regexp_id = collect global_regexp_collector _loc (gen_compile_regexp _loc env regexp) in
               (* [capture_id] is the variable which will capture the string in the pattern: *)
               let capture_id = collect local_regexp_collector _loc (<:expr< $id:regexp_id$ >>, regexp) in
               <:patt< $id:capture_id$ >>
@@ -435,11 +497,11 @@ let check_collision patt variables =
 (* Maps all branch of the given match case. It returns [(b, mc)]
    where [b] is [true] iff at least one branch have been modified
    and [mc] is the result. *)
-let rec map_match mapper global_regexp_collector = function
+let rec map_match mapper env global_regexp_collector = function
   | <:match_case@_loc< $patt$ when $cond$ -> $expr$ >> as mc ->
       let local_regexp_collector = { prefix = "var"; next_id = 0; collect = [] } in
       (* Map the pattern and collect regexp it contains *)
-      let patt = (new map_pattern global_regexp_collector local_regexp_collector)#patt patt in
+      let patt = (new map_pattern env global_regexp_collector local_regexp_collector)#patt patt in
       if local_regexp_collector.collect = [] then
         (* If nothing has changed, keep the branch unchanged *)
         (false, mc)
@@ -492,27 +554,27 @@ let rec map_match mapper global_regexp_collector = function
         in
         (true, <:match_case< $patt$ when $cond$ -> let $Ast.biAnd_of_list (make_bindings 0 [] variables_by_regexp)$ in $expr$ >>)
   | <:match_case@_loc< $mc1$ | $mc2$ >> ->
-      let (b1, mc1) = map_match mapper global_regexp_collector mc1
-      and (b2, mc2) = map_match mapper global_regexp_collector mc2 in
+      let (b1, mc1) = map_match mapper env global_regexp_collector mc1
+      and (b2, mc2) = map_match mapper env global_regexp_collector mc2 in
       (b1 || b2, <:match_case< $mc1$ | $mc2$ >>)
   | mc ->
       (false, mc)
 
 (* [global_regexp_collector] collects all regular expression found in the expression *)
-class map global_regexp_collector = object(self)
+class map env global_regexp_collector = object(self)
   inherit Ast.map as super
 
   method expr expr =
     let expr = super#expr expr in
     match expr with
       | <:expr@_loc< match $e$ with $mc$ >> ->
-          let modified, mc = map_match self global_regexp_collector mc in
+          let modified, mc = map_match self env global_regexp_collector mc in
           if modified then
             <:expr< let __pa_text_pcre_result = ref [||] in match $e$ with $mc$ >>
           else
             expr
       | <:expr@_loc< function $mc$ >> ->
-          let modified, mc = map_match self global_regexp_collector mc in
+          let modified, mc = map_match self env global_regexp_collector mc in
           if modified then
             <:expr< let __pa_text_pcre_result = ref [||] in function $mc$ >>
           else
@@ -520,7 +582,7 @@ class map global_regexp_collector = object(self)
       | <:expr@_loc< $lid:id$ >> when is_special_id id -> begin
           match lookup regexps id with
             | Some regexp ->
-                let regexp_id = collect global_regexp_collector _loc (gen_compile_regexp _loc regexp) in
+                let regexp_id = collect global_regexp_collector _loc (gen_compile_regexp _loc env regexp) in
                 <:expr< Lazy.force $id:regexp_id$ >>
             | None ->
                 expr
@@ -545,7 +607,7 @@ end
 *)
 let map_expr e =
   let collector = { prefix = "regexp"; next_id = 0; collect = [] } in
-  let e = (new map collector)#expr e in
+  let e = (new map !global_env collector)#expr e in
   match collector.collect with
     | [] ->
         e
@@ -576,7 +638,7 @@ let map_expr e =
 *)
 let map_class_expr e =
   let collector = { prefix = "regexp"; next_id = 0; collect = [] } in
-  let e = (new map collector)#class_expr e in
+  let e = (new map !global_env collector)#class_expr e in
   match collector.collect with
     | [] ->
         e
@@ -605,19 +667,32 @@ let map_class_expr e =
        expr
    ]}
 *)
-let rec map_binding = function
+let rec map_binding new_env = function
+  | <:binding@_loc< $lid:id$ = $lid:id_re$ >> as binding when is_special_id id_re -> begin
+      match lookup regexps id_re with
+        | Some regexp ->
+            let expansed = expanse !global_env regexp in
+            (Env.add id expansed new_env,
+             <:binding< $lid:id$ = Text_re.regexp $str:string_of_regexp expansed$ >>)
+        | None ->
+            (new_env, binding)
+    end
   | <:binding@_loc< $id$ = $e$ >> ->
-      <:binding< $id$ = $map_expr e$ >>
+      (new_env, <:binding< $id$ = $map_expr e$ >>)
   | <:binding@_loc< $a$ and $b$ >> ->
-      <:binding< $map_binding a$ and $map_binding b$ >>
-  | x ->
-      x
+      let new_env, binding_a = map_binding new_env a in
+      let new_env, binding_b = map_binding new_env b in
+      (new_env, <:binding< $binding_a$ and $binding_b$ >>)
+  | binding ->
+      (new_env, binding)
 
 (* Map top-level definitions *)
 let map_def = function
   | Ast.StVal(loc, is_rec, binding) ->
       (* let id = expr *)
-      Ast.StVal(loc, is_rec, map_binding binding)
+      let new_env, binding = map_binding !global_env binding in
+      global_env := new_env;
+      Ast.StVal(loc, is_rec, binding)
   | Ast.StExp(loc, expr) ->
       (* expr *)
       Ast.StExp(loc, map_expr expr)
