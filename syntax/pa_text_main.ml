@@ -1,5 +1,5 @@
 (*
- * pa_text_pcre.ml
+ * pa_text_main.ml
  * ---------------
  * Copyright : (c) 2010, Jeremie Dimino <jeremie@dimino.org>
  * Licence   : BSD3
