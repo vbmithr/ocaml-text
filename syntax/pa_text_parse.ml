@@ -41,6 +41,7 @@ type parse_tree =
   | Mode of Loc.t * mode * bool
   | Look of Loc.t * direction * parse_tree * bool
   | Group of Loc.t * parse_tree
+  | Condition of Loc.t * string * parse_tree * parse_tree option
 
 (* +-----------------------------------------------------------------+
    | Grammar of regular expression                                   |
@@ -172,7 +173,13 @@ EXTEND Gram
             Look(_loc, Ahead, r, true)
         | ">!"; r = SELF ->
             Look(_loc, Ahead, r, false)
+        | "if"; id = LIDENT; "then"; r_then = SELF; r_else = maybe_else ->
+            Condition(_loc, id, r_then, r_else)
         ] ];
+
+  maybe_else:
+    [ [ "else"; r = regexp -> Some r
+      | -> None ] ];
 
   regexp_eoi:
     [ [ re = regexp; `EOI -> re ] ];
@@ -200,6 +207,11 @@ let collect_regexp_bindings ast =
         loop n acc r2
     | Bind(_loc, r, id, conv) ->
         loop (n + 1) ((_loc, id, n, conv) :: acc) r
+    | Condition(_, _, r_then, None) ->
+        loop n acc r_then
+    | Condition(_, _, r_then, Some r_else) ->
+        let n, acc = loop n acc r_then in
+        loop n acc r_else
   in
   snd (loop 1 [] ast)
 

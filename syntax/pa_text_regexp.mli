@@ -35,6 +35,7 @@ type t =
   | Backward_reference of int
   | Mode of mode * bool
   | Look of direction * t * bool
+  | Condition of int * t * t option
 
 (** {6 Constructors} *)
 

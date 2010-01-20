@@ -34,6 +34,7 @@ module Ast : sig
     | Backward_reference of int
     | Mode of mode * bool
     | Look of direction * t * bool
+    | Condition of int * t * t option
 
   val epsilon : t
   val literal : Text.t -> t
@@ -48,6 +49,7 @@ module Ast : sig
   val backward_reference : int -> t
   val mode : mode -> bool -> t
   val look : direction -> t -> bool -> t
+  val condition : int -> t -> t option -> t
 
 end = struct
 
@@ -72,6 +74,7 @@ end = struct
     | Backward_reference of int
     | Mode of mode * bool
     | Look of direction * t * bool
+    | Condition of int * t * t option
 
   (* +---------------------------------------------------------------+
      | Constructors                                                  |
@@ -82,7 +85,7 @@ end = struct
 
   let group r =
     match r with
-      | Group _ | Capture _ -> r
+      | Group _ | Capture _ | Condition _ -> r
       | _ -> Group r
 
   let capture r =
@@ -130,6 +133,17 @@ end = struct
   let backward_reference n = Backward_reference n
   let mode mode state = Mode(mode, state)
   let look dir r state = Look(dir, r, state)
+  let condition id r_then r_else =
+    let r_then =
+      match r_then with
+        | Group r -> r
+        | r -> r
+    and r_else =
+      match r_else with
+        | Some(Group r) -> Some r
+        | x -> x
+    in
+    Condition(id, r_then, r_else)
 end
 
 include Ast
@@ -160,6 +174,7 @@ let rec negate = function
   | Backward_reference _ -> None
   | Mode _ -> None
   | Look _ -> None
+  | Condition _ -> None
 
 (* +-----------------------------------------------------------------+
    | Parse tree -> regular expression                                |
@@ -259,6 +274,21 @@ let of_parse_tree ~env ~parse_tree =
     | P.Backward_reference(loc, id) -> begin
         try
           (vars, n, backward_reference (Pa_text_env.find id vars))
+        with Not_found ->
+          Loc.raise loc (Failure "invalid backward reference")
+      end
+    | P.Condition(loc, id, r_then, None) -> begin
+        try
+          let vars, n, r_then = loop vars n r_then in
+          (vars, n, condition (Pa_text_env.find id vars) r_then None)
+        with Not_found ->
+          Loc.raise loc (Failure "invalid backward reference")
+      end
+    | P.Condition(loc, id, r_then, Some r_else) -> begin
+        try
+          let vars, n, r_then = loop vars n r_then in
+          let vars, n, r_else = loop vars n r_else in
+          (vars, n, condition (Pa_text_env.find id vars) r_then None)
         with Not_found ->
           Loc.raise loc (Failure "invalid backward reference")
       end
@@ -421,6 +451,20 @@ let to_string re =
     | Look(Behind, r, false) ->
         add "(?<!";
         loop r;
+        add ")"
+    | Condition(n, r_then, r_else) ->
+        add "(?(";
+        add (string_of_int n);
+        add ")";
+        loop r_then;
+        begin
+          match r_else with
+            | Some r ->
+                add "|";
+                loop r;
+            | None ->
+                ()
+        end;
         add ")"
   and loop_charset = function
     | Ca_range(a, b) ->

@@ -74,6 +74,10 @@ type parse_tree =
   | Group of Loc.t * parse_tree
       (** [Group pt] represent a regular expression that cannot be
           inlined. *)
+  | Condition of Loc.t * string * parse_tree * parse_tree option
+      (** [Condition(loc, id, r_then, r_else)] is [r_then] if the
+          capture variable [id] matched something, and r_else
+          otherwise. *)
 
 (** {6 Manipulation} *)
 
