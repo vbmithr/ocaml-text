@@ -121,7 +121,7 @@ let _ =
         let libs = if have_pcre then ["text"; "text_pcre"] else ["text"] in
 
         let byte = List.map (sprintf "src/%s.cma") libs in
-        let byte = if have_pcre then "syntax/pa_text_pcre.cmo" :: byte else byte in
+        let byte = if have_pcre then "syntax/pa_text_pcre.cma" :: byte else byte in
         let native = List.map (sprintf "src/%s.cmxa") libs @ List.map (sprintf "src/%s.cmxs") libs in
         let common = ["META"; "text.docdir/index.html"] in
 

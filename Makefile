@@ -35,7 +35,7 @@ install:
 	  $(wildcard _build/src/*.cmxs) \
 	  $(wildcard _build/src/*.so) \
 	  $(wildcard _build/src/*.a) \
-	  $(wildcard _build/syntax/pa_text_pcre.cmo)
+	  $(wildcard _build/syntax/pa_text_pcre.cma)
 
 .PHONY: uninstall
 uninstall:

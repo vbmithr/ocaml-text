@@ -9,6 +9,8 @@
 
 open Camlp4.PreCast
 open Syntax
+open Pa_text_types
+open Pa_text_regexp
 
 let lookup tbl key =
   try
@@ -16,114 +18,18 @@ let lookup tbl key =
   with
       Not_found -> None
 
-module Env = Map.Make(String)
-
 (* +-----------------------------------------------------------------+
-   | Unicode properties                                              |
+   | Unicode quotations                                              |
    +-----------------------------------------------------------------+ *)
 
-let uchar_properties = [
-  "C"; "Cc"; "Cf"; "Cn"; "Co"; "Cs";
-  "L"; "Ll"; "Lm"; "Lo"; "Lt"; "Lu";
-  "M"; "Mc"; "Me"; "Mn";
-  "N"; "Nd"; "Nl"; "No";
-  "P"; "Pc"; "Pd"; "Pe"; "Pf"; "Pi"; "Po"; "Ps";
-  "S"; "Sc"; "Sk"; "Sm"; "So";
-  "Z"; "Zl"; "Zp"; "Zs";
-]
+(* The syntax extension added the escape sequence "\u{XXXX}". To
+   prevent the lexer to fail and die since this is not a valid ocaml
+   escape sequece, we replace the backslash and "u" by a null
+   character.
 
-let scripts = [
-  "Arabic";
-  "Armenian";
-  "Balinese";
-  "Bengali";
-  "Bopomofo";
-  "Braille";
-  "Buginese";
-  "Buhid";
-  "Canadian_boriginal";
-  "Cherokee";
-  "Common";
-  "Coptic";
-  "Cuneiform";
-  "Cypriot";
-  "Cyrillic";
-  "Deseret";
-  "Devanagari";
-  "Ethiopic";
-  "Georgian";
-  "Glagolitic";
-  "Gothic";
-  "Greek";
-  "Gujarati";
-  "Gurmukhi";
-  "Han";
-  "Hangul";
-  "Hanunoo";
-  "Hebrew";
-  "Hiragana";
-  "Inherited";
-  "Kannada";
-  "Katakana";
-  "Kharoshthi";
-  "Khmer";
-  "Lao";
-  "Latin";
-  "Limbu";
-  "Linear_B";
-  "Malayalam";
-  "Mongolian";
-  "Myanmar";
-  "New_Tai_Lue";
-  "Nko";
-  "Ogham";
-  "Old_Italic";
-  "Old_Persian";
-  "Oriya";
-  "Osmanya";
-  "Phags_Pa";
-  "Phoenician";
-  "Runic";
-  "Shavian";
-  "Sinhala";
-  "Syloti_Nagri";
-  "Syriac";
-  "Tagalog";
-  "Tagbanwa";
-  "Tai_Le";
-  "Tamil";
-  "Telugu";
-  "Thaana";
-  "Thai";
-  "Tibetan";
-  "Tifinagh";
-  "Ugaritic";
-  "Yi";
-]
-
-let check_property loc name =
-  if List.mem name uchar_properties || List.mem name scripts then
-    ()
-  else
-    Loc.raise loc (Failure(Printf.sprintf "invalid character property: '%s'" name))
-
-(* +-----------------------------------------------------------------+
-   | Literal escaping                                                |
-   +-----------------------------------------------------------------+ *)
-
-let split_hexa_quotation = function
-  | "{" :: x :: l when Text.is_xdigit x ->
-      let rec skip_hexa acc = function
-        | "}" :: l ->
-            Some(Text.rev_implode ("}" :: acc), l)
-        | x :: l when Text.is_xdigit x ->
-            skip_hexa (x :: acc) l
-        | _ ->
-            None
-      in
-      skip_hexa [x; "{"] l
-  | _ ->
-      None
+   The restoring of the escape sequenc will be done later, during
+   printing of regular expression by [Pa_text_regexp.to_string].
+*)
 
 (* replace "\\u{XXXX}" -> "\x00\x00{XXXX}" *)
 let hide_unicode_quotations txt =
@@ -137,7 +43,7 @@ let hide_unicode_quotations txt =
     | "\\" :: "\\" :: l ->
         loop_in_string ( "\\\\" :: acc) l
     | "\\" :: "u" :: l -> begin
-        match split_hexa_quotation l with
+        match Pa_text_util.split_hexa_quotation l with
           | Some(txt, l) ->
               loop_in_string (txt :: "\x00\x00" :: acc) l
           | None ->
@@ -155,565 +61,120 @@ let hide_unicode_quotations txt =
   in
   loop_search_string [] (Text.explode txt)
 
-(* Escape special characters in literals, and restore unicode
-   quotations: *)
-let escape text =
-  let rec loop acc = function
-    | ("\\" | "^" | "$" | "." | "[" | "|" | "(" | ")" | "?" | "*" | "+" | "{" as ch) :: l ->
-        loop (ch :: "\\" :: acc) l
-    | "\x00" :: "\x00" :: l -> begin
-        match split_hexa_quotation l with
-          | Some(txt, l) ->
-              loop (txt :: "\\\\x" :: acc) l
-          | None ->
-              loop ("\x00\x00" :: acc) l
-      end
-    | x :: l ->
-        loop (x :: acc) l
-    | [] ->
-        Text.rev_implode acc
-  in
-  loop [] (Text.explode text)
-
-(* Same as [espace] but for text in charset (between "[" and "]"), and
-   restore unicode quotations: *)
-let escape_in_charset text =
-  let rec loop acc = function
-    | ("\\" | "-" | "[" | "]" | "^" as ch) :: l ->
-        loop (ch :: "\\" :: acc) l
-    | "\x00" :: "\x00" :: l -> begin
-        match split_hexa_quotation l with
-          | Some(txt, l) ->
-              loop (txt :: "\\\\x" :: acc) l
-          | None ->
-              loop ("\x00\x00" :: acc) l
-      end
-    | x :: l ->
-        loop (x :: acc) l
-    | [] ->
-        Text.rev_implode acc
-  in
-  loop [] (Text.explode text)
-
-(* +-----------------------------------------------------------------+
-   | Regular expression AST                                          |
-   +-----------------------------------------------------------------+ *)
-
-type converter =
-  | Constant of Ast.expr
-  | Function of Ast.expr
-  | Position
-
-type charset_atom =
-  | Ca_variable of Ast.loc * string * bool (* negate *)
-  | Ca_verbatim of Ast.loc * string
-
-type charset = charset_atom list
-
-type mode = Caseless | Multiline | Dot_all
-
-type greediness = Greedy | Lazy | Possessive
-
-type direction = Behind | Ahead
-
-type regexp =
-  | Epsilon of Ast.loc
-  | Literal of Ast.loc * string
-  | Repeat of Ast.loc * regexp * int (* minimum *) * int option (* maximum *) * greediness
-  | Concat of Ast.loc * regexp * regexp
-  | Alternative of Ast.loc * regexp * regexp
-  | Bind of Ast.loc * regexp * string * converter option
-  | Charset of Ast.loc * charset * bool (* negate *)
-  | Meta of Ast.loc * Text.t
-  | Variable of Ast.loc * string * bool (* negate *)
-  | Backward_reference of Ast.loc * string
-  | Mode of Ast.loc * mode * bool
-  | Look of Ast.loc * direction * regexp * bool (* negate *)
-
-let star loc regexp greediness = Repeat(loc, regexp, 0, None, greediness)
-let plus loc regexp greediness = Repeat(loc, regexp, 1, None, greediness)
-let opt loc regexp greediness = Repeat(loc, regexp, 0, Some 1, greediness)
-
-(* +-----------------------------------------------------------------+
-   | Regular expression parsing                                      |
-   +-----------------------------------------------------------------+ *)
-
-let regexp_eoi = Gram.Entry.mk "regexp_eoi"
-
-EXTEND Gram
-  GLOBAL: regexp_eoi;
-
-  utf8_string:
-    [ [ s = STRING ->
-          match Text.check s with
-            | Some error ->
-                Loc.raise _loc (Failure("invalid UTF-8 string: " ^ error))
-            | None ->
-                s
-      ] ];
-
-  range:
-    [ [ a = INT ->
-          let a = int_of_string a in
-          if a < 0 then
-            Loc.raise _loc (Failure "range bounds must be positive number")
-          else
-            (a, Some a)
-      | a = INT; "-"; b = INT ->
-          let a = int_of_string a and b = int_of_string b in
-          if a < 0 || b < a then
-            Loc.raise _loc (Failure "invalid range bounds")
-          else
-            (a, Some b)
-      | a = INT; "+" ->
-          let a = int_of_string a in
-          if a < 0 then
-            Loc.raise _loc (Failure "range bounds must be positive number")
-          else
-            (a, None)
-      ] ];
-
-  charset_atom:
-    [ [ a = utf8_string; ["-" | ".."]; b = utf8_string ->
-          if Text.length a <> 1 || Text.length b <> 1 then
-            Loc.raise _loc (Failure("UTF-8 string literals in charset range must contain only one unicode character"))
-          else if Text.code a < Text.code b then
-            Ca_verbatim (_loc, escape_in_charset a ^ "-" ^ escape_in_charset b)
-          else
-            Loc.raise _loc (Failure "invalid charset: the upper limit must be greater than the lower limit")
-      | s = utf8_string ->
-          Ca_verbatim(_loc, escape_in_charset s)
-      | id = LIDENT ->
-          Ca_variable(_loc, id, false)
-      | "!"; id = LIDENT ->
-          Ca_variable(_loc, id, true)
-      | prop = UIDENT ->
-          check_property _loc prop;
-          Ca_verbatim(_loc, Printf.sprintf "\\p{%s}" prop)
-      | "!"; prop = UIDENT ->
-          check_property _loc prop;
-          Ca_verbatim(_loc, Printf.sprintf "\\P{%s}" prop)
-      ] ];
-
-  charset:
-    [ [ l = LIST0 charset_atom -> l ] ];
-
-  mode:
-    [ [ mode = LIDENT ->
-          match mode with
-            | "i" | "caseless" -> Caseless
-            | "m" | "multiline" -> Multiline
-            | "s" | "singleline" | "dotall" -> Dot_all
-            | _ -> Loc.raise _loc (Failure(Printf.sprintf "invalid mode: '%s'" mode))
-      ] ];
-
-  regexp:
-    [ [ r = SELF; "as"; i = LIDENT;
-        conv =
-          OPT [ ":"; s = LIDENT -> Function <:expr< $lid: s ^ "_of_string"$ >>
-              | ":="; e = expr -> Function e
-              | "="; e = expr -> Constant e ] ->
-            Bind(_loc, r, i, conv)
-      | r1 = SELF; "|"; r2 = SELF -> Alternative(_loc, r1, r2)
-      | r1 = SELF; r2 = SELF -> Concat(_loc, r1, r2) ]
-
-    | "postop" NONA
-        [ r = SELF; "*" -> star _loc r Greedy
-        | r = SELF; "+" -> plus _loc r Greedy
-        | r = SELF; "?" -> opt _loc r Greedy
-        | r = SELF; "{"; (a, b) = range; "}" -> Repeat(_loc, r, a, b, Greedy)
-        | r = SELF; "*?" -> star _loc r Lazy
-        | r = SELF; "+?" -> plus _loc r Lazy
-        | r = SELF; "??" -> opt _loc r Lazy
-        | r = SELF; "{"; (a, b) = range; "}"; "?" -> Repeat(_loc, r, a, b, Lazy)
-        | r = SELF; "*+" -> star _loc r Possessive
-        | r = SELF; "++" -> plus _loc r Possessive
-        | r = SELF; "?+" -> opt _loc r Possessive
-        | r = SELF; "{"; (a, b) = range; "}"; "+" -> Repeat(_loc, r, a, b, Possessive) ]
-
-    | "preop" NONA
-        [ "\\"; id = LIDENT -> Backward_reference (_loc, id) ]
-
-    | "simple" NONA
-        [ "["; cs = charset; "]" ->
-            Charset(_loc, cs, false)
-        | "[^"; cs = charset; "]" ->
-            Charset(_loc, cs, true)
-        | s = utf8_string ->
-            if s = "" then
-              Epsilon _loc
-            else
-              Literal(_loc, s)
-        | "_" ->
-            Meta(_loc, ".")
-        | i = LIDENT ->
-            Variable(_loc, i, false)
-        | "!"; i = LIDENT ->
-            Variable(_loc, i, true)
-        | "^" ->
-            Meta(_loc, "^")
-        | "$" ->
-            Meta(_loc, "$")
-        | "&+"; mode = mode ->
-            Mode(_loc, mode, true)
-        | "&-"; mode = mode ->
-            Mode(_loc, mode, false)
-        | prop = UIDENT ->
-            check_property _loc prop;
-            Meta(_loc, Printf.sprintf "\\p{%s}" prop)
-        | "!"; prop = UIDENT ->
-            check_property _loc prop;
-            Meta(_loc, Printf.sprintf "\\P{%s}" prop)
-        | "@"; name = LIDENT ->
-            Bind(_loc, Epsilon _loc, name, Some Position)
-        | "("; r = SELF; ")" ->
-            r
-        | "<"; r = SELF ->
-            Look(_loc, Behind, r, false)
-        | "<!"; r = SELF ->
-            Look(_loc, Behind, r, true)
-        | ">"; r = SELF ->
-            Look(_loc, Ahead, r, false)
-        | ">!"; r = SELF ->
-            Look(_loc, Ahead, r, true)
-        ] ];
-
-  regexp_eoi:
-    [ [ re = regexp; `EOI -> re ] ];
-END
-
-(* +-----------------------------------------------------------------+
-   | AST --> pcre regular expressions                                |
-   +-----------------------------------------------------------------+ *)
-
-type expansed_regexp =
-  | E_epsilon
-  | E_literal of Text.t
-  | E_group of expansed_regexp
-  | E_capture of expansed_regexp
-  | E_repeat of expansed_regexp * int * int option * greediness
-  | E_concat of expansed_regexp * expansed_regexp
-  | E_alternative of expansed_regexp * expansed_regexp
-  | E_charset of Text.t
-  | E_posix of Text.t * bool (* negate *)
-  | E_meta of Text.t
-  | E_backward_reference of int
-  | E_mode of mode * bool
-  | E_look of direction * expansed_regexp * bool (* negate *)
-
-let negate_class loc re =
-  match re with
-    | E_posix(str, negate) ->
-        E_posix(str, not negate)
-    | E_meta ("\\h" | "\\v" | "\\b" as ch) ->
-        E_meta(Text.upper ch)
-    | E_meta ("\\H" | "\\V" | "\\B" as ch) ->
-        E_meta(Text.lower ch)
-    | _ ->
-        Loc.raise loc (Failure "can only negate posix classes")
-
-(* [expanse] convert a regular expression ast to a simpler
-   ast. Variables in pattern are resolved by using the environment
-   [env]. *)
-let expanse env ast =
-  (* [vars] is the mapping from capture to their index, and [n] is the
-     next available index: *)
-  let rec loop vars n = function
-    | Epsilon _ ->
-        (vars, n, E_epsilon)
-    | Literal(_, lit) ->
-        (vars, n, E_literal lit)
-    | Repeat(_, r, min, max, greediness) ->
-        let vars, n, r = loop vars n r in
-        (vars, n, E_repeat(E_group r, min, max, greediness))
-    | Concat(_, r1, r2) ->
-        let vars, n, r1 = loop vars n r1 in
-        let vars, n, r2 = loop vars n r2 in
-        (vars, n, E_concat(E_group r1, E_group r2))
-    | Alternative(_, r1, r2) ->
-        let vars, n, r1 = loop vars n r1 in
-        let vars, n, r2 = loop vars n r2 in
-        (vars, n, E_alternative(E_group r1, E_group r2))
-    | Bind(_, r, id, _) ->
-        let vars = Env.add id n vars in
-        let vars, n, r = loop vars (n + 1) r in
-        (vars, n, E_capture(E_group r))
-    | Charset(_, cs, negate) -> begin
-        let buf = Buffer.create 42 in
-        List.iter
-          (function
-             | Ca_verbatim(_loc, str) ->
-                 Buffer.add_string buf str
-             | Ca_variable(_loc, var, negate) ->
-                 try
-                   let re = Env.find var env in
-                   let re = if negate then negate_class _loc re else re in
-                   match re with
-                     | E_posix(name, false) ->
-                         Printf.bprintf buf "[:%s:]" name
-                     | E_posix(name, true) ->
-                         Printf.bprintf buf "[:^%s:]" name
-                     | E_charset str ->
-                         Buffer.add_string buf str
-                     | E_literal txt ->
-                         Buffer.add_string buf (escape_in_charset txt)
-                     | _ ->
-                         Loc.raise _loc (Failure(var ^ " is not a charset or a literal"))
-                 with Not_found ->
-                   Loc.raise _loc (Failure("unbounded variable: " ^ var)))
-          cs;
-        (vars, n, E_charset(Buffer.contents buf))
-      end
-    | Meta(_, text) ->
-        (vars, n, E_meta text)
-    | Variable(loc, id, negate) -> begin
-        try
-          let re = Env.find id env in
-          let re = if negate then negate_class loc re else re in
-          (vars, n, re)
-        with Not_found ->
-          Loc.raise loc (Failure("unbounded variable: " ^ id))
-      end
-    | Backward_reference(loc, id) -> begin
-        try
-          (vars, n, E_backward_reference(Env.find id vars))
-        with Not_found ->
-          Loc.raise loc (Failure "invalid backward reference")
-      end
-    | Mode(loc, mode, state) ->
-        (vars, n, E_mode(mode, state))
-    | Look(_, dir, r, negate) ->
-        let vars, n, r = loop vars n r in
-        (vars, n, E_look(dir, r, negate))
-  in
-  let vars, n, re = loop Env.empty 1 ast in
-  re
-
-let simplify re =
-  let rec map re = match re with
-
-    (* Ecxpression that cannot be simplified: *)
-    | E_epsilon | E_literal _ | E_charset _ | E_posix _ | E_meta _ | E_backward_reference _ | E_mode _->
-        re
-
-    (* Simplify concatenations: *)
-    | E_concat(E_literal lit1, E_literal lit2) ->
-        E_literal(lit1 ^ lit2)
-    | E_concat(E_epsilon, (E_literal _ as re))
-    | E_concat((E_literal _ as re), E_epsilon) ->
-        re
-    | E_concat(E_group r1, E_group r2)
-    | E_concat(r1, E_group r2)
-    | E_concat(E_group r1, r2) ->
-        E_concat(r1, r2)
-
-    (* Simplify stupid regexp: *)
-    | E_repeat(E_epsilon, _, _, _) ->
-        E_epsilon
-    | E_look(dir, E_epsilon, negate) ->
-        E_epsilon
-
-    (* Group merging *)
-    | E_repeat(E_group(E_epsilon | E_charset _ | E_posix _ | E_meta _ | E_backward_reference _ | E_mode _ as re), min, max, greediness) ->
-        E_repeat(re, min, max, greediness)
-    | E_repeat(E_group(E_literal lit as re), min, max, greediness) when Text.length lit = 1 ->
-        E_repeat(re, min, max, greediness)
-    | E_repeat(r, min, max, greediness) ->
-        E_repeat(map r, min, max, greediness)
-    | E_group(E_group re) ->
-        map (E_group re)
-    | E_group(E_capture re) ->
-        map (E_capture re)
-    | E_capture(E_group re) ->
-        map (E_capture re)
-    | E_group(E_epsilon | E_repeat _ | E_charset _ | E_posix _ | E_meta _ | E_backward_reference _ | E_mode _ as re) ->
-        re
-    | E_group(E_literal lit) when Text.length lit = 1 ->
-        E_literal lit
-    | E_group re ->
-        E_group(map re)
-    | E_capture re ->
-        E_capture(map re)
-    | E_alternative(r1, r2) ->
-        E_alternative(map r1, map r2)
-    | E_concat(r1, r2) ->
-        E_concat(map r1, map r2)
-
-    | E_look(dir, r, negate) ->
-        E_look(dir, map r, negate)
-  in
-  (* Remove toplevel groups: *)
-  let top_map = function
-    | E_group re -> re
-    | re -> re
-  in
-  (* Simplify until we reach a fix-point: *)
-  let rec loop re =
-    let re' = top_map (map re) in
-    if re <> re' then
-      loop re'
-    else
-      re
-  in
-  loop re
-
-let string_of_mode = function
-  | Caseless -> "i"
-  | Multiline -> "m"
-  | Dot_all -> "s"
-
-let string_of_regexp re =
-  let buffer = Buffer.create 42 in
-  let add str = Buffer.add_string buffer str in
-  let addg = function
-    | Greedy -> ()
-    | Lazy -> add "?"
-    | Possessive -> add "+"
-  in
-  let rec loop = function
-    | E_epsilon ->
-        ()
-    | E_literal lit ->
-        add (escape lit)
-    | E_group re ->
-        add "(?:";
-        loop re;
-        add ")"
-    | E_capture re ->
-        add "(";
-        loop re;
-        add ")"
-    | E_repeat(re, 0, None, g) ->
-        loop re;
-        add "*";
-        addg g
-    | E_repeat(re, 1, None, g) ->
-        loop re;
-        add "+";
-        addg g
-    | E_repeat(re, 0, Some 1, g) ->
-        loop re;
-        add "?";
-        addg g
-    | E_repeat(re, min, Some max, g) ->
-        loop re;
-        add "{";
-        add (string_of_int min);
-        add ",";
-        add (string_of_int max);
-        add "}";
-        addg g
-    | E_repeat(re, min, None, g) ->
-        loop re;
-        add "{";
-        add (string_of_int min);
-        add ",}";
-        addg g
-    | E_concat(r1, r2) ->
-        loop r1;
-        loop r2
-    | E_alternative(r1, r2) ->
-        loop r1;
-        add "|";
-        loop r2
-    | E_charset c ->
-        add "[";
-        add c;
-        add "]"
-    | E_posix(c, false) ->
-        add "[[:";
-        add c;
-        add ":]]"
-    | E_posix(c, true) ->
-        add "[[:^";
-        add c;
-        add ":]]"
-    | E_meta t ->
-        add t
-    | E_backward_reference n ->
-        add "\\g{";
-        add (string_of_int n);
-        add "}"
-    | E_mode(mode, true) ->
-        add "(?";
-        add (string_of_mode mode);
-        add ")"
-    | E_mode(mode, false) ->
-        add "(?-";
-        add (string_of_mode mode);
-        add ")"
-    | E_look(Ahead, r, false) ->
-        add "(?=";
-        loop r;
-        add ")"
-    | E_look(Ahead, r, true) ->
-        add "(?!";
-        loop r;
-        add ")"
-    | E_look(Behind, r, false) ->
-        add "(?<=";
-        loop r;
-        add ")"
-    | E_look(Behind, r, true) ->
-        add "(?<!";
-        loop r;
-        add ")"
-  in
-  loop (simplify re);
-  Buffer.contents buffer
-
 (* +-----------------------------------------------------------------+
    | Initial environment                                             |
    +-----------------------------------------------------------------+ *)
 
-let global_env = ref(
-  List.fold_left (fun env (id, exp_regexp) -> Env.add id exp_regexp env) Env.empty [
-    ("lower", E_posix("lower", false));
-    ("upper", E_posix("upper", false));
-    ("alpha", E_posix("alpha", false));
-    ("digit", E_posix("digit", false));
-    ("alnum", E_posix("alnum", false));
-    ("punct", E_posix("punct", false));
-    ("graph", E_posix("graph", false));
-    ("print", E_posix("print", false));
-    ("blank", E_posix("blank", false));
-    ("cntrl", E_posix("cntrl", false));
-    ("xdigit", E_posix("xdigit", false));
-    ("space", E_posix("space", false));
-    ("ascii", E_posix("ascii", false));
-    ("word", E_posix("word", false));
-    ("newline", E_meta "\\R");
-    ("hspace", E_meta "\\h");
-    ("vspace", E_meta "\\v");
-    ("bound", E_meta "\\b");
-    ("bos", E_meta "^");
-    ("eos", E_meta "$");
-  ]
-)
+let global_env = ref Pa_text_env.empty
+let add_vars l =
+  global_env := List.fold_left (fun env (id, exp_regexp) -> Pa_text_env.add id exp_regexp env) !global_env l
 
-(* +-----------------------------------------------------------------+
-   | Regular expressions processing                                  |
-   +-----------------------------------------------------------------+ *)
+let () =
+  add_vars [
+    ("lower", posix "lower" true);
+    ("upper", posix "upper" true);
+    ("alpha", posix "alpha" true);
+    ("digit", posix "digit" true);
+    ("alnum", posix "alnum" true);
+    ("punct", posix "punct" true);
+    ("graph", posix "graph" true);
+    ("print", posix "print" true);
+    ("blank", posix "blank" true);
+    ("cntrl", posix "cntrl" true);
+    ("xdigit", posix "xdigit" true);
+    ("space", posix "space" true);
+    ("ascii", posix "ascii" true);
+    ("word", posix "word" true);
+    ("newline", meta "\\R" None);
+    ("hspace", meta "\\h" (Some "\\H"));
+    ("vspace", meta "\\v" (Some "\\V"));
+    ("bound", meta "\\b" (Some "\\B"));
+    ("bos", meta "^" None);
+    ("eos", meta "$" None);
+  ];
 
-(* Return the list of bounded variables with their group number *)
-let collect_regexp_bindings ast =
-  let rec loop n acc = function
-    | Epsilon _ | Literal _ | Variable _ | Charset _ | Meta _ | Backward_reference _ | Mode _ ->
-        (n, acc)
-    | Look(_, _, r, _) ->
-        loop n acc r
-    | Repeat(_, r, _, _, _) ->
-        loop n acc r
-    | Concat(_, r1, r2) ->
-        let n, acc = loop n acc r1 in
-        loop n acc r2
-    | Alternative(_, r1, r2) ->
-        let n, acc = loop n acc r1 in
-        loop n acc r2
-    | Bind(_loc, r, id, conv) ->
-        loop (n + 1) ((_loc, id, n, conv) :: acc) r
-  in
-  snd (loop 1 [] ast)
+  (* Unicode properties *)
+  add_vars
+    (List.map (fun name -> (name, meta ("\\p{" ^ name ^ "}") (Some ("\\P{" ^ name ^ "}")))) [
+       "C"; "Cc"; "Cf"; "Cn"; "Co"; "Cs";
+       "L"; "Ll"; "Lm"; "Lo"; "Lt"; "Lu";
+       "M"; "Mc"; "Me"; "Mn";
+       "N"; "Nd"; "Nl"; "No";
+       "P"; "Pc"; "Pd"; "Pe"; "Pf"; "Pi"; "Po"; "Ps";
+       "S"; "Sc"; "Sk"; "Sm"; "So";
+       "Z"; "Zl"; "Zp"; "Zs";
+     ]);
+
+  (* Scripts *)
+  add_vars
+    (List.map (fun name -> (name, meta ("\\p{" ^ name ^ "}") (Some ("\\P{" ^ name ^ "}")))) [
+       "Arabic";
+       "Armenian";
+       "Balinese";
+       "Bengali";
+       "Bopomofo";
+       "Braille";
+       "Buginese";
+       "Buhid";
+       "Canadian_boriginal";
+       "Cherokee";
+       "Common";
+       "Coptic";
+       "Cuneiform";
+       "Cypriot";
+       "Cyrillic";
+       "Deseret";
+       "Devanagari";
+       "Ethiopic";
+       "Georgian";
+       "Glagolitic";
+       "Gothic";
+       "Greek";
+       "Gujarati";
+       "Gurmukhi";
+       "Han";
+       "Hangul";
+       "Hanunoo";
+       "Hebrew";
+       "Hiragana";
+       "Inherited";
+       "Kannada";
+       "Katakana";
+       "Kharoshthi";
+       "Khmer";
+       "Lao";
+       "Latin";
+       "Limbu";
+       "Linear_B";
+       "Malayalam";
+       "Mongolian";
+       "Myanmar";
+       "New_Tai_Lue";
+       "Nko";
+       "Ogham";
+       "Old_Italic";
+       "Old_Persian";
+       "Oriya";
+       "Osmanya";
+       "Phags_Pa";
+       "Phoenician";
+       "Runic";
+       "Shavian";
+       "Sinhala";
+       "Syloti_Nagri";
+       "Syriac";
+       "Tagalog";
+       "Tagbanwa";
+       "Tai_Le";
+       "Tamil";
+       "Telugu";
+       "Thaana";
+       "Thai";
+       "Tibetan";
+       "Tifinagh";
+       "Ugaritic";
+       "Yi";
+     ])
 
 (* +-----------------------------------------------------------------+
    | Quotation expansion                                             |
@@ -723,7 +184,7 @@ let prefix = "__pa_text_pcre_"
 
 (* Mapping from unique identifier of the form [__pa_text_pcre_NNN] to
    its corresponding regular expression ast *)
-let regexps : (string, regexp) Hashtbl.t = Hashtbl.create 42
+let regexps : (string, Pa_text_parse.parse_tree) Hashtbl.t = Hashtbl.create 42
 
 let gen_id =
   let nb = ref 0 in
@@ -733,13 +194,13 @@ let gen_id =
     prefix ^ string_of_int x
 
 let expand_patt_regexp _loc _loc_name_opt quotation_contents =
-  let ast = Gram.parse_string regexp_eoi _loc (hide_unicode_quotations quotation_contents) in
+  let ast = Pa_text_parse.parse _loc (hide_unicode_quotations quotation_contents) in
   let id = gen_id () in
   Hashtbl.add regexps id ast;
   <:patt< $lid:id$ >>
 
 let expand_expr_regexp _loc _loc_name_opt quotation_contents =
-  let ast = Gram.parse_string regexp_eoi _loc (hide_unicode_quotations quotation_contents) in
+  let ast = Pa_text_parse.parse _loc (hide_unicode_quotations quotation_contents) in
   let id = gen_id () in
   Hashtbl.add regexps id ast;
   <:expr< $lid:id$ >>
@@ -782,7 +243,7 @@ let is_special_id id =
 
 (* Generate the expression for the given regular expression: *)
 let gen_compile_regexp _loc env regexp =
-  <:expr< lazy(Text_pcre.regexp $str:string_of_regexp (expanse env regexp)$) >>
+  <:expr< lazy(Text_pcre.regexp $str:Pa_text_regexp.to_string (Pa_text_regexp.of_parse_tree env regexp)$) >>
 
 (* Collects all regular expressions in the pattern of a match case
    branch. [global_regexp_collector] collect all regular expression
@@ -861,7 +322,7 @@ let rec map_match mapper env global_regexp_collector = function
         (* Collect all capture variables in regexps: *)
         let variables_by_regexp =
           List.map
-            (fun (_loc, id, (expr, regexp)) -> (collect_regexp_bindings regexp))
+            (fun (_loc, id, (expr, regexp)) -> (Pa_text_parse.collect_regexp_bindings regexp))
             local_regexp_collector.collect
         in
         (* Check for conflicts *)
@@ -872,17 +333,17 @@ let rec map_match mapper env global_regexp_collector = function
           | variables :: rest ->
               let acc = List.fold_left begin fun acc (_loc, id, n, conv) ->
                 let binding = match conv with
-                  | None ->
+                  | Pa_text_parse.Identity ->
                       <:binding< $lid:id$ = Pcre.get_substring
                                               (Array.unsafe_get !__pa_text_pcre_result $int:string_of_int regexp_number$)
                                               $int:string_of_int n$ >>
-                  | Some(Constant e) ->
+                  | Pa_text_parse.Constant e ->
                       <:binding< $lid:id$ = $e$ >>
-                  | Some(Function f) ->
+                  | Pa_text_parse.Function f ->
                       <:binding< $lid:id$ = $f$ (Pcre.get_substring
                                                    (Array.unsafe_get !__pa_text_pcre_result $int:string_of_int regexp_number$)
                                                    $int:string_of_int n$) >>
-                  | Some Position ->
+                  | Pa_text_parse.Position ->
                       <:binding< ($lid:id$, _) = Pcre.get_substring_ofs
                                                   (Array.unsafe_get !__pa_text_pcre_result $int:string_of_int regexp_number$)
                                                   $int:string_of_int n$ >>
@@ -1009,10 +470,10 @@ let map_class_expr e =
 let rec map_binding new_env = function
   | <:binding@_loc< $lid:id$ = $lid:id_re$ >> as binding when is_special_id id_re -> begin
       match lookup regexps id_re with
-        | Some regexp ->
-            let expansed = expanse !global_env regexp in
-            (Env.add id expansed new_env,
-             <:binding< $lid:id$ = Text_pcre.regexp $str:string_of_regexp expansed$ >>)
+        | Some parse_tree ->
+            let regexp = Pa_text_regexp.of_parse_tree !global_env parse_tree in
+            (Pa_text_env.add id regexp new_env,
+             <:binding< $lid:id$ = Text_pcre.regexp $str:Pa_text_regexp.to_string regexp$ >>)
         | None ->
             (new_env, binding)
     end
