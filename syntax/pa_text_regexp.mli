@@ -21,7 +21,8 @@ type charset_atom =
 
 type charset = charset_atom list
 
-type t = private
+type t =
+    private
   | Literal of Text.t
   | Group of t
   | Capture of t

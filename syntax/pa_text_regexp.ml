@@ -10,89 +10,129 @@
 open Camlp4.PreCast
 open Pa_text_types
 
-(* +-----------------------------------------------------------------+
-   | Types                                                           |
-   +-----------------------------------------------------------------+ *)
+module Ast : sig
 
-type charset_atom =
-  | Ca_range of Text.t * Text.t
-  | Ca_literal of Text.t
-  | Ca_posix of Text.t * bool
-  | Ca_meta of Text.t
+  type charset_atom =
+    | Ca_range of Text.t * Text.t
+    | Ca_literal of Text.t
+    | Ca_posix of Text.t * bool
+    | Ca_meta of Text.t
 
-type charset = charset_atom list
+  type charset = charset_atom list
 
-type t =
-  | Literal of Text.t
-  | Group of t
-  | Capture of t
-  | Repeat of t * int * int option * greediness
-  | Concat of t list
-  | Alternatives of t list
-  | Charset of charset * bool
-  | Posix of Text.t * bool
-  | Meta of Text.t * Text.t option
-  | Backward_reference of int
-  | Mode of mode * bool
-  | Look of direction * t * bool
+  type t =
+      private
+    | Literal of Text.t
+    | Group of t
+    | Capture of t
+    | Repeat of t * int * int option * greediness
+    | Concat of t list
+    | Alternatives of t list
+    | Charset of charset * bool
+    | Posix of Text.t * bool
+    | Meta of Text.t * Text.t option
+    | Backward_reference of int
+    | Mode of mode * bool
+    | Look of direction * t * bool
 
-(* +-----------------------------------------------------------------+
-   | Constructors                                                    |
-   +-----------------------------------------------------------------+ *)
+  val epsilon : t
+  val literal : Text.t -> t
+  val group : t -> t
+  val capture : t -> t
+  val repeat : t -> int -> int option -> greediness -> t
+  val concat : t list -> t
+  val alternatives : t list -> t
+  val charset : charset -> bool -> t
+  val posix : Text.t -> bool -> t
+  val meta : Text.t -> Text.t option -> t
+  val backward_reference : int -> t
+  val mode : mode -> bool -> t
+  val look : direction -> t -> bool -> t
 
-let epsilon = Literal ""
-let literal text = Literal text
+end = struct
 
-let group r =
-  match r with
-    | Group _ | Capture _ -> r
-    | _ -> Group r
+  type charset_atom =
+    | Ca_range of Text.t * Text.t
+    | Ca_literal of Text.t
+    | Ca_posix of Text.t * bool
+    | Ca_meta of Text.t
 
-let capture r =
-  match r with
-    | Group r -> Capture r
-    | _ -> Capture r
+  type charset = charset_atom list
 
-let repeat r min max greediness =
-  match r with
-    | Literal "" -> epsilon
-    | _ -> Repeat(r, min, max, greediness)
+  type t =
+    | Literal of Text.t
+    | Group of t
+    | Capture of t
+    | Repeat of t * int * int option * greediness
+    | Concat of t list
+    | Alternatives of t list
+    | Charset of charset * bool
+    | Posix of Text.t * bool
+    | Meta of Text.t * Text.t option
+    | Backward_reference of int
+    | Mode of mode * bool
+    | Look of direction * t * bool
 
-let concat = function
-  | [] ->
-      epsilon
-  | [r] ->
-      r
-  | l ->
-      (* Inline concatenations: *)
-      Concat(List.flatten
-               (List.map
-                  (function
-                     | Concat l -> l
-                     | Group(Concat l) -> l
-                     | re -> [re])
-                  l))
+  (* +---------------------------------------------------------------+
+     | Constructors                                                  |
+     +---------------------------------------------------------------+ *)
 
-let alternatives = function
-  | [] ->
-      epsilon
-  | [r] ->
-      r
-  | l ->
-      (* Inline non-grouped alternatives: *)
-      Alternatives(List.flatten
-                     (List.map
-                        (function
-                           | Alternatives l -> l
-                           | re -> [re])
-                        l))
+  let epsilon = Literal ""
+  let literal text = Literal text
 
-let charset l state = Charset(l, state)
-let posix name state = Posix(name, state)
-let meta text ntext = Meta(text, ntext)
-let backward_reference n = Backward_reference n
-let mode mode state = Mode(mode, state)
-let look dir r state = Look(dir, r, state)
+  let group r =
+    match r with
+      | Group _ | Capture _ -> r
+      | _ -> Group r
+
+  let capture r =
+    match r with
+      | Group r -> Capture r
+      | _ -> Capture r
+
+  let repeat r min max greediness =
+    match r with
+      | Literal "" -> epsilon
+      | _ -> Repeat(r, min, max, greediness)
+
+  let concat = function
+    | [] ->
+        epsilon
+    | [r] ->
+        r
+    | l ->
+        (* Inline concatenations: *)
+        Concat(List.flatten
+                 (List.map
+                    (function
+                       | Concat l -> l
+                       | Group(Concat l) -> l
+                       | re -> [re])
+                    l))
+
+  let alternatives = function
+    | [] ->
+        epsilon
+    | [r] ->
+        r
+    | l ->
+        (* Inline non-grouped alternatives: *)
+        Alternatives(List.flatten
+                       (List.map
+                          (function
+                             | Alternatives l -> l
+                             | re -> [re])
+                          l))
+
+  let charset l state = Charset(l, state)
+  let posix name state = Posix(name, state)
+  let meta text ntext = Meta(text, ntext)
+  let backward_reference n = Backward_reference n
+  let mode mode state = Mode(mode, state)
+  let look dir r state = Look(dir, r, state)
+end
+
+include Ast
 
 (* +-----------------------------------------------------------------+
    | Manipulation                                                    |
@@ -102,21 +142,21 @@ let rec negate = function
   | Literal _ -> None
   | Group r -> begin
       match negate r with
-        | Some r -> Some(Group r)
+        | Some r -> Some(group r)
         | None -> None
     end
   | Capture r -> begin
       match negate r with
-        | Some r -> Some(Capture r)
+        | Some r -> Some(capture r)
         | None -> None
     end
   | Repeat _ -> None
   | Concat _ -> None
   | Alternatives _ -> None
-  | Charset(cs, state) -> Some(Charset(cs, not state))
-  | Posix(name, state) -> Some(Posix(name, not state))
+  | Charset(cs, state) -> Some(charset cs (not state))
+  | Posix(name, state) -> Some(posix name (not state))
   | Meta(a, None) -> None
-  | Meta(a, Some b) -> Some(Meta(b, Some a))
+  | Meta(a, Some b) -> Some(meta b (Some a))
   | Backward_reference _ -> None
   | Mode _ -> None
   | Look _ -> None
@@ -133,7 +173,7 @@ let of_parse_tree ~env ~parse_tree =
   let rec loop vars n = function
     | P.Group(_, r) ->
         let vars, n, r = loop vars n r in
-        (vars, n, Group r)
+        (vars, n, group r)
     | P.Literal(_, lit) ->
         (vars, n, literal lit)
     | P.Repeat(_, r, min, max, greediness) ->
@@ -196,9 +236,9 @@ let of_parse_tree ~env ~parse_tree =
                 [Ca_literal lit]
           end cs
         in
-        (vars, n, Charset(List.flatten l, state))
+        (vars, n, charset (List.flatten l) state)
     | P.Meta(_, text, ntext) ->
-        (vars, n, Meta(text, ntext))
+        (vars, n, meta text ntext)
     | P.Variable(loc, id, state) -> begin
         match Pa_text_env.lookup id env with
           | Some re ->
@@ -218,15 +258,15 @@ let of_parse_tree ~env ~parse_tree =
       end
     | P.Backward_reference(loc, id) -> begin
         try
-          (vars, n, Backward_reference(Pa_text_env.find id vars))
+          (vars, n, backward_reference (Pa_text_env.find id vars))
         with Not_found ->
           Loc.raise loc (Failure "invalid backward reference")
       end
     | P.Mode(loc, mode, state) ->
-        (vars, n, Mode(mode, state))
+        (vars, n, Ast.mode mode state)
     | P.Look(_, dir, r, state) ->
         let vars, n, r = loop vars n r in
-        (vars, n, Look(dir, r, state))
+        (vars, n, look dir r state)
   in
   let vars, n, re = loop Pa_text_env.empty 1 parse_tree in
   re
