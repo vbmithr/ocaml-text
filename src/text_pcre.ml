@@ -17,3 +17,9 @@ let exec store array =
     true
   with Not_found ->
     false
+
+let get_substring substrings index =
+  try
+    Pcre.get_substring substrings index
+  with Not_found ->
+    ""

@@ -334,17 +334,17 @@ let rec map_match mapper env global_regexp_collector = function
               let acc = List.fold_left begin fun acc (_loc, id, n, conv) ->
                 let binding = match conv with
                   | Pa_text_parse.Identity ->
-                      <:binding< $lid:id$ = Pcre.get_substring
+                      <:binding< $lid:id$ = Text_pcre.get_substring
                                               (Array.unsafe_get !__pa_text_pcre_result $int:string_of_int regexp_number$)
                                               $int:string_of_int n$ >>
                   | Pa_text_parse.Constant e ->
                       <:binding< $lid:id$ = $e$ >>
                   | Pa_text_parse.Function f ->
-                      <:binding< $lid:id$ = $f$ (Pcre.get_substring
+                      <:binding< $lid:id$ = $f$ (Text_pcre.get_substring
                                                    (Array.unsafe_get !__pa_text_pcre_result $int:string_of_int regexp_number$)
                                                    $int:string_of_int n$) >>
                   | Pa_text_parse.Position ->
-                      <:binding< ($lid:id$, _) = Pcre.get_substring_ofs
+                      <:binding< ($lid:id$, _) = Text_pcre.get_substring_ofs
                                                   (Array.unsafe_get !__pa_text_pcre_result $int:string_of_int regexp_number$)
                                                   $int:string_of_int n$ >>
                 in
