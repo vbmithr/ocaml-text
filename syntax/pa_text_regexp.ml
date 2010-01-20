@@ -85,7 +85,7 @@ end = struct
 
   let group r =
     match r with
-      | Group _ | Capture _ | Condition _ -> r
+      | Group _ | Capture _ | Condition _ | Charset _ -> r
       | _ -> Group r
 
   let capture r =
