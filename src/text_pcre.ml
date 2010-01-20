@@ -7,7 +7,7 @@
  * This file is a part of ocaml-text.
  *)
 
-let iflags = Pcre.cflags [`UTF8; `ANCHORED; `DOLLAR_ENDONLY]
+let iflags = Pcre.cflags [`UTF8; `ANCHORED]
 
 let regexp str = Pcre.regexp ~iflags str
 

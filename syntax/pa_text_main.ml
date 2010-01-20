@@ -89,8 +89,8 @@ let () =
     ("hspace", meta "\\h" (Some "\\H"));
     ("vspace", meta "\\v" (Some "\\V"));
     ("bound", meta "\\b" (Some "\\B"));
-    ("bos", meta "^" None);
-    ("eos", meta "$" None);
+    ("bos", meta "\A" None);
+    ("eos", meta "\z" None);
   ];
 
   (* Unicode properties *)
