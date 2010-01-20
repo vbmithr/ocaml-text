@@ -150,6 +150,8 @@ type mode = Caseless | Multiline | Dot_all
 
 type greediness = Greedy | Lazy | Possessive
 
+type direction = Behind | Ahead
+
 type regexp =
   | Epsilon of Ast.loc
   | Literal of Ast.loc * string
@@ -162,6 +164,7 @@ type regexp =
   | Variable of Ast.loc * string * bool (* negate *)
   | Backward_reference of Ast.loc * string
   | Mode of Ast.loc * mode * bool
+  | Look of Ast.loc * direction * regexp * bool (* negate *)
 
 let star loc regexp greediness = Repeat(loc, regexp, 0, None, greediness)
 let plus loc regexp greediness = Repeat(loc, regexp, 1, None, greediness)
@@ -301,6 +304,14 @@ EXTEND Gram
             Bind(_loc, Epsilon _loc, name, Some Position)
         | "("; r = SELF; ")" ->
             r
+        | "<"; r = SELF ->
+            Look(_loc, Behind, r, false)
+        | "<~"; r = SELF ->
+            Look(_loc, Behind, r, true)
+        | ">"; r = SELF ->
+            Look(_loc, Ahead, r, false)
+        | ">~"; r = SELF ->
+            Look(_loc, Ahead, r, true)
         ] ];
 
   regexp_eoi:
@@ -324,6 +335,7 @@ type expansed_regexp =
   | E_meta of Text.t
   | E_backward_reference of int
   | E_mode of mode * bool
+  | E_look of direction * expansed_regexp * bool (* negate *)
 
 let negate_class loc re =
   match re with
@@ -406,6 +418,9 @@ let expanse env ast =
       end
     | Mode(loc, mode, state) ->
         (vars, n, E_mode(mode, state))
+    | Look(_, dir, r, negate) ->
+        let vars, n, r = loop vars n r in
+        (vars, n, E_look(dir, r, negate))
   in
   let vars, n, re = loop Env.empty 1 ast in
   re
@@ -414,7 +429,7 @@ let simplify re =
   let rec map re = match re with
 
     (* Ecxpression that cannot be simplified: *)
-    | E_epsilon | E_literal _ | E_charset _ | E_posix _ | E_meta _ | E_backward_reference _ | E_mode _ ->
+    | E_epsilon | E_literal _ | E_charset _ | E_posix _ | E_meta _ | E_backward_reference _ | E_mode _->
         re
 
     (* Simplify concatenations: *)
@@ -430,6 +445,8 @@ let simplify re =
 
     (* Simplify stupid regexp: *)
     | E_repeat(E_epsilon, _, _, _) ->
+        E_epsilon
+    | E_look(dir, E_epsilon, negate) ->
         E_epsilon
 
     (* Group merging *)
@@ -457,6 +474,9 @@ let simplify re =
         E_alternative(map r1, map r2)
     | E_concat(r1, r2) ->
         E_concat(map r1, map r2)
+
+    | E_look(dir, r, negate) ->
+        E_look(dir, map r, negate)
   in
   (* Remove toplevel groups: *)
   let top_map = function
@@ -558,6 +578,22 @@ let string_of_regexp re =
         add "(?-";
         add (string_of_mode mode);
         add ")"
+    | E_look(Ahead, r, false) ->
+        add "(?=";
+        loop r;
+        add ")"
+    | E_look(Ahead, r, true) ->
+        add "(?!";
+        loop r;
+        add ")"
+    | E_look(Behind, r, false) ->
+        add "(?<=";
+        loop r;
+        add ")"
+    | E_look(Behind, r, true) ->
+        add "(?<!";
+        loop r;
+        add ")"
   in
   loop (simplify re);
   Buffer.contents buffer
@@ -600,6 +636,8 @@ let collect_regexp_bindings ast =
   let rec loop n acc = function
     | Epsilon _ | Literal _ | Variable _ | Charset _ | Meta _ | Backward_reference _ | Mode _ ->
         (n, acc)
+    | Look(_, _, r, _) ->
+        loop n acc r
     | Repeat(_, r, _, _, _) ->
         loop n acc r
     | Concat(_, r1, r2) ->
