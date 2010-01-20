@@ -221,12 +221,12 @@ EXTEND Gram
           Ca_verbatim(_loc, escape_in_charset s)
       | id = LIDENT ->
           Ca_variable(_loc, id, false)
-      | "~"; id = LIDENT ->
+      | "!"; id = LIDENT ->
           Ca_variable(_loc, id, true)
       | prop = UIDENT ->
           check_property _loc prop;
           Ca_verbatim(_loc, Printf.sprintf "\\p{%s}" prop)
-      | "~"; prop = UIDENT ->
+      | "!"; prop = UIDENT ->
           check_property _loc prop;
           Ca_verbatim(_loc, Printf.sprintf "\\P{%s}" prop)
       ] ];
@@ -268,7 +268,7 @@ EXTEND Gram
         | r = SELF; "{"; (a, b) = range; "}"; "+" -> Repeat(_loc, r, a, b, Possessive) ]
 
     | "preop" NONA
-        [ "!"; id = LIDENT -> Backward_reference (_loc, id) ]
+        [ "\\"; id = LIDENT -> Backward_reference (_loc, id) ]
 
     | "simple" NONA
         [ "["; cs = charset; "]" ->
@@ -284,7 +284,7 @@ EXTEND Gram
             Meta(_loc, ".")
         | i = LIDENT ->
             Variable(_loc, i, false)
-        | "~"; i = LIDENT ->
+        | "!"; i = LIDENT ->
             Variable(_loc, i, true)
         | "^" ->
             Meta(_loc, "^")
@@ -297,20 +297,20 @@ EXTEND Gram
         | prop = UIDENT ->
             check_property _loc prop;
             Meta(_loc, Printf.sprintf "\\p{%s}" prop)
-        | "~"; prop = UIDENT ->
+        | "!"; prop = UIDENT ->
             check_property _loc prop;
             Meta(_loc, Printf.sprintf "\\P{%s}" prop)
-        | "%"; name = LIDENT ->
+        | "@"; name = LIDENT ->
             Bind(_loc, Epsilon _loc, name, Some Position)
         | "("; r = SELF; ")" ->
             r
         | "<"; r = SELF ->
             Look(_loc, Behind, r, false)
-        | "<~"; r = SELF ->
+        | "<!"; r = SELF ->
             Look(_loc, Behind, r, true)
         | ">"; r = SELF ->
             Look(_loc, Ahead, r, false)
-        | ">~"; r = SELF ->
+        | ">!"; r = SELF ->
             Look(_loc, Ahead, r, true)
         ] ];
 
@@ -819,9 +819,9 @@ let rec map_match mapper env global_regexp_collector = function
                                                    (Array.unsafe_get !__pa_text_pcre_result $int:string_of_int regexp_number$)
                                                    $int:string_of_int n$) >>
                   | Some Position ->
-                      <:binding< $lid:id$ = Pervasives.fst (Pcre.get_substring_ofs
-                                                              (Array.unsafe_get !__pa_text_pcre_result $int:string_of_int regexp_number$)
-                                                              $int:string_of_int n$) >>
+                      <:binding< ($lid:id$, _) = Pcre.get_substring_ofs
+                                                  (Array.unsafe_get !__pa_text_pcre_result $int:string_of_int regexp_number$)
+                                                  $int:string_of_int n$ >>
                 in
                 binding :: acc
               end acc variables in
