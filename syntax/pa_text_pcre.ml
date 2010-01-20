@@ -111,25 +111,89 @@ let check_property loc name =
    | Literal escaping                                                |
    +-----------------------------------------------------------------+ *)
 
-(* Escape special characters in literals *)
-let escape text =
-  Text.map
-    (fun ch -> match ch with
-       | "\\" | "^" | "$" | "." | "[" | "|" | "(" | ")" | "?" | "*" | "+" | "{" ->
-           "\\" ^ ch
-       | _ ->
-           ch)
-    text
+let split_hexa_quotation = function
+  | "{" :: x :: l when Text.is_xdigit x ->
+      let rec skip_hexa acc = function
+        | "}" :: l ->
+            Some(Text.rev_implode ("}" :: acc), l)
+        | x :: l when Text.is_xdigit x ->
+            skip_hexa (x :: acc) l
+        | _ ->
+            None
+      in
+      skip_hexa [x; "{"] l
+  | _ ->
+      None
 
-(* Same as [espace] but for text in charset (between "[" and "]"): *)
+(* replace "\\u{XXXX}" -> "\x00\x00{XXXX}" *)
+let hide_unicode_quotations txt =
+  let rec loop_in_string acc = function
+    | [] ->
+        Text.rev_implode acc
+    | "\\" :: "\"" :: l ->
+        loop_in_string ("\\\"" :: acc) l
+    | "\"" :: l ->
+        loop_search_string ("\"" :: acc) l
+    | "\\" :: "\\" :: l ->
+        loop_in_string ( "\\\\" :: acc) l
+    | "\\" :: "u" :: l -> begin
+        match split_hexa_quotation l with
+          | Some(txt, l) ->
+              loop_in_string (txt :: "\x00\x00" :: acc) l
+          | None ->
+              loop_in_string ("\\u" :: acc) l
+      end
+    | x :: l ->
+        loop_in_string (x :: acc) l
+  and loop_search_string acc = function
+    | [] ->
+        Text.rev_implode acc
+    | "\"" :: l ->
+        loop_in_string ("\"" :: acc) l
+    | x :: l ->
+        loop_search_string (x :: acc) l
+  in
+  loop_search_string [] (Text.explode txt)
+
+(* Escape special characters in literals, and restore unicode
+   quotations: *)
+let escape text =
+  let rec loop acc = function
+    | ("\\" | "^" | "$" | "." | "[" | "|" | "(" | ")" | "?" | "*" | "+" | "{" as ch) :: l ->
+        loop (ch :: "\\" :: acc) l
+    | "\x00" :: "\x00" :: l -> begin
+        match split_hexa_quotation l with
+          | Some(txt, l) ->
+              loop (txt :: "\\\\x" :: acc) l
+          | None ->
+              loop ("\x00\x00" :: acc) l
+      end
+    | x :: l ->
+        loop (x :: acc) l
+    | [] ->
+        Text.rev_implode acc
+  in
+  loop [] (Text.explode text)
+
+(* Same as [espace] but for text in charset (between "[" and "]"), and
+   restore unicode quotations: *)
 let escape_in_charset text =
-  Text.map
-    (fun ch -> match ch with
-       | "\\" | "-" | "[" | "]" | "^" ->
-           "\\" ^ ch
-       | _ ->
-           ch)
-    text
+  let rec loop acc = function
+    | ("\\" | "-" | "[" | "]" | "^" as ch) :: l ->
+        loop (ch :: "\\" :: acc) l
+    | "\x00" :: "\x00" :: l -> begin
+        match split_hexa_quotation l with
+          | Some(txt, l) ->
+              loop (txt :: "\\\\x" :: acc) l
+          | None ->
+              loop ("\x00\x00" :: acc) l
+      end
+    | x :: l ->
+        loop (x :: acc) l
+    | [] ->
+        Text.rev_implode acc
+  in
+  loop [] (Text.explode text)
 
 (* +-----------------------------------------------------------------+
    | Regular expression AST                                          |
@@ -669,13 +733,13 @@ let gen_id =
     prefix ^ string_of_int x
 
 let expand_patt_regexp _loc _loc_name_opt quotation_contents =
-  let ast = Gram.parse_string regexp_eoi _loc quotation_contents in
+  let ast = Gram.parse_string regexp_eoi _loc (hide_unicode_quotations quotation_contents) in
   let id = gen_id () in
   Hashtbl.add regexps id ast;
   <:patt< $lid:id$ >>
 
 let expand_expr_regexp _loc _loc_name_opt quotation_contents =
-  let ast = Gram.parse_string regexp_eoi _loc quotation_contents in
+  let ast = Gram.parse_string regexp_eoi _loc (hide_unicode_quotations quotation_contents) in
   let id = gen_id () in
   Hashtbl.add regexps id ast;
   <:expr< $lid:id$ >>
