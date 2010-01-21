@@ -12,3 +12,4 @@
 val exec : Pcre.substrings array ref -> (Pcre.regexp Lazy.t * Text.t) array -> bool
 val regexp : string -> Pcre.regexp
 val get_substring : Pcre.substrings -> int -> Text.t
+val get_substring_ofs : Pcre.substrings -> int -> int

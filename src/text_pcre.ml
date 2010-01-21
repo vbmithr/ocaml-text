@@ -23,3 +23,9 @@ let get_substring substrings index =
     Pcre.get_substring substrings index
   with Not_found ->
     ""
+
+let get_substring_ofs substrings index =
+  try
+    fst (Pcre.get_substring_ofs substrings index)
+  with Not_found ->
+    -1

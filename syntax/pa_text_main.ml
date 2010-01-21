@@ -350,13 +350,23 @@ let rec map_match mapper env global_regexp_collector = function
                                                    (Array.unsafe_get !__pa_text_pcre_result $int:string_of_int regexp_number$)
                                                    $int:string_of_int n$) >>
                   | Pa_text_parse.Position ->
-                      <:binding< ($lid:id$, _) = Text_pcre.get_substring_ofs
-                                                  (Array.unsafe_get !__pa_text_pcre_result $int:string_of_int regexp_number$)
-                                                  $int:string_of_int n$ >>
+                      <:binding< $lid:id$ = Text_pcre.get_substring_ofs
+                                              (Array.unsafe_get !__pa_text_pcre_result $int:string_of_int regexp_number$)
+                                              $int:string_of_int n$ >>
                 in
                 binding :: acc
               end acc variables in
               make_bindings (regexp_number + 1) acc rest
+        in
+        (* Make the compiler happy (no "unused variables") *)
+        let expr =
+          List.fold_left
+            (fun expr vars ->
+               List.fold_left
+                 (fun expr (_loc, id, _, _) ->
+                    <:expr< ignore $lid:id$; $expr$ >>)
+                 expr vars)
+            expr variables_by_regexp
         in
         (true, <:match_case< $patt$ when $cond$ -> let $Ast.biAnd_of_list (make_bindings 0 [] variables_by_regexp)$ in $expr$ >>)
   | <:match_case@_loc< $mc1$ | $mc2$ >> ->
