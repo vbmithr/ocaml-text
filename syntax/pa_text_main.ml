@@ -184,7 +184,7 @@ let prefix = "__pa_text_pcre_"
 
 (* Mapping from unique identifier of the form [__pa_text_pcre_NNN] to
    its corresponding regular expression ast *)
-let regexps : (string, Pa_text_parse.parse_tree) Hashtbl.t = Hashtbl.create 42
+let regexps : (string, Pa_text_parse.parse_tree * [ `text | `regexp ]) Hashtbl.t = Hashtbl.create 42
 
 let gen_id =
   let nb = ref 0 in
@@ -196,13 +196,19 @@ let gen_id =
 let expand_patt_regexp _loc _loc_name_opt quotation_contents =
   let ast = Pa_text_parse.parse _loc (hide_unicode_quotations quotation_contents) in
   let id = gen_id () in
-  Hashtbl.add regexps id ast;
+  Hashtbl.add regexps id (ast, `regexp);
   <:patt< $lid:id$ >>
 
 let expand_expr_regexp _loc _loc_name_opt quotation_contents =
   let ast = Pa_text_parse.parse _loc (hide_unicode_quotations quotation_contents) in
   let id = gen_id () in
-  Hashtbl.add regexps id ast;
+  Hashtbl.add regexps id (ast, `regexp);
+  <:expr< $lid:id$ >>
+
+let expand_expr_text _loc _loc_name_opt quotation_contents =
+  let ast = Pa_text_parse.parse _loc (hide_unicode_quotations quotation_contents) in
+  let id = gen_id () in
+  Hashtbl.add regexps id (ast, `text);
   <:expr< $lid:id$ >>
 
 (* +-----------------------------------------------------------------+
@@ -255,13 +261,13 @@ class map_pattern env global_regexp_collector local_regexp_collector = object
   method patt p = match super#patt p with
     | <:patt@_loc< $lid:id$ >> as p when is_special_id id -> begin
         match lookup regexps id with
-          | Some regexp ->
+          | Some(regexp, `regexp) ->
               (* [regexp_id] is the variable which will appears at the toplevel: *)
               let regexp_id = collect global_regexp_collector _loc (gen_compile_regexp _loc env regexp) in
               (* [capture_id] is the variable which will capture the string in the pattern: *)
               let capture_id = collect local_regexp_collector _loc (<:expr< $id:regexp_id$ >>, regexp) in
               <:patt< $id:capture_id$ >>
-          | None ->
+          | _ ->
               p
       end
     | p ->
@@ -381,9 +387,11 @@ class map env global_regexp_collector = object(self)
             expr
       | <:expr@_loc< $lid:id$ >> when is_special_id id -> begin
           match lookup regexps id with
-            | Some regexp ->
+            | Some(regexp, `regexp) ->
                 let regexp_id = collect global_regexp_collector _loc (gen_compile_regexp _loc env regexp) in
                 <:expr< Lazy.force $id:regexp_id$ >>
+            | Some(regexp, `text) ->
+                <:expr< $str:Pa_text_regexp.to_string (Pa_text_regexp.of_parse_tree env regexp)$ >>
             | None ->
                 expr
         end
@@ -470,10 +478,14 @@ let map_class_expr e =
 let rec map_binding new_env = function
   | <:binding@_loc< $lid:id$ = $lid:id_re$ >> as binding when is_special_id id_re -> begin
       match lookup regexps id_re with
-        | Some parse_tree ->
+        | Some(parse_tree, `regexp) ->
             let regexp = Pa_text_regexp.of_parse_tree !global_env parse_tree in
             (Pa_text_env.add id regexp new_env,
              <:binding< $lid:id$ = Text_pcre.regexp $str:Pa_text_regexp.to_string regexp$ >>)
+        | Some(parse_tree, `text) ->
+            let regexp = Pa_text_regexp.of_parse_tree !global_env parse_tree in
+            (new_env,
+             <:binding< $lid:id$ = $str:Pa_text_regexp.to_string regexp$ >>)
         | None ->
             (new_env, binding)
     end
@@ -509,6 +521,7 @@ let map_def = function
 let () =
   Quotation.add "re" Quotation.DynAst.patt_tag expand_patt_regexp;
   Quotation.add "re" Quotation.DynAst.expr_tag expand_expr_regexp;
+  Quotation.add "re_text" Quotation.DynAst.expr_tag expand_expr_text;
   let map = (Ast.map_str_item map_def)#str_item in
   AstFilters.register_str_item_filter map;
   AstFilters.register_topphrase_filter map
