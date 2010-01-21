@@ -15,13 +15,15 @@ It supports:
   - character encoding/decoding using iconv
   - manipulation of text as UTF-8 encoded strings
   - localised text functions such as compare, upper, ...
+  - human readable regular expression inside patterns
 
 In order to be the compatible with other ocaml library without pain,
 OCaml-Text choose to use only regular strings for dealing with text.
 
 * Requirement
 
-OCaml-Text needs ocaml >= 3.11 and libiconv.
+OCaml-Text needs ocaml >= 3.11 and libiconv. It require also pcre
+bindings for ocaml to have regular expression support.
 
 * Building and installation
 
@@ -30,7 +32,8 @@ To build and install it just type:
   $ make all
   $ make install
 
-This will install the "text" package (ocamlfind is required).
+This will install the "text" package (ocamlfind is required), and the
+"text.pcre" if compiled with support for pcre.
 
 * Development
 
