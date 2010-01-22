@@ -25,6 +25,7 @@ external decoder : t -> decoder = "ml_iconv_decoder"
 external encoder : t -> encoder = "ml_iconv_encoder"
 external stub_decode : decoder -> string -> int -> int -> decoding_result = "ml_iconv_decode"
 external stub_encode : encoder -> string -> int -> int -> code_point -> encoding_result = "ml_iconv_encode"
+external stub_recode_string : t -> t -> string -> string = "ml_iconv_recode_string"
 
 let system = init ()
 
@@ -56,39 +57,8 @@ let equal a b =
   in
   loop 0
 
-let rec recode_string ?fallback ~src ~dst str =
+let recode_string ~src ~dst str =
   if equal src dst then
     str
   else
-    let decoder = decoder src and encoder = encoder dst in
-    let rec loop_decode fallback src_bytes src_pos dst_bytes dst_pos =
-      if src_pos = String.length src_bytes then
-        (dst_bytes, dst_pos)
-      else
-        match decode decoder src_bytes src_pos (String.length src_bytes - src_pos) with
-          | Dec_ok(code, count) ->
-              loop_encode fallback src_bytes (src_pos + count) dst_bytes dst_pos code
-          | Dec_need_more ->
-              failwith "Encoding.recode_string: unterminated sequence in input"
-          | Dec_error ->
-              Printf.ksprintf failwith "Encoding.recode_string: cannot decode sequence at offset %d with %S" src_pos src
-    and loop_encode fallback src_bytes src_pos dst_bytes dst_pos code =
-      match encode encoder dst_bytes dst_pos (String.length dst_bytes - dst_pos) code with
-        | Enc_ok count ->
-            loop_decode fallback src_bytes src_pos dst_bytes (dst_pos + count)
-        | Enc_need_more ->
-            let len = String.length dst_bytes in
-            let s = String.create (len * 2) in
-            String.blit dst_bytes 0 s 0 dst_pos;
-            loop_encode fallback src_bytes src_pos s dst_pos code
-        | Enc_error ->
-            match fallback with
-              | None ->
-                  Printf.ksprintf failwith "Encoding.recode_string: cannot encode unicode code-point %04x with %S" code dst
-              | Some s ->
-                  let dst_bytes, dst_pos = loop_decode None s 0 dst_bytes dst_pos in
-                  loop_decode fallback src_bytes src_pos dst_bytes dst_pos
-    in
-    let len = String.length str in
-    let bytes, pos = loop_decode fallback str 0 (String.create len) 0 in
-    String.sub bytes 0 pos
+    stub_recode_string src dst str

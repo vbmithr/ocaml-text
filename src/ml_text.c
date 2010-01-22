@@ -224,3 +224,83 @@ CAMLprim value ml_text_compare(value s1, value s2) {
   else
     CAMLreturn(Val_int(0));
 }
+
+/* +-----------------------------------------------------------------+
+   | String recoding                                                 |
+   +-----------------------------------------------------------------+ */
+
+CAMLprim value ml_iconv_recode_string(value enc_src, value enc_dst, value str)
+{
+  CAMLparam3(str, enc_src, enc_dst);
+  CAMLlocal1(result);
+
+  iconv_t cd = iconv_open(String_val(enc_dst), String_val(enc_src));
+
+  if (cd == (iconv_t)-1)
+    caml_failwith("Encoding.recode_string: invalid encoding");
+
+  /* Length of the output buffer. It is initialised to the length of
+     the input string, which should be a good
+     approximation: */
+  size_t len = caml_string_length(str);
+
+  /* Pointer to the beginning of the output buffer. The +1 is for the
+     NULL terminating byte. */
+  char *dst_buffer = malloc(len + 1);
+
+  if (dst_buffer == NULL)
+    caml_failwith("Encoding.recode_string: out of memory");
+
+  /* iconv arguments */
+  char *src_bytes = String_val(str);
+  char *dst_bytes = dst_buffer;
+  size_t src_remaining = len;
+  size_t dst_remaining = len;
+
+  while (src_remaining) {
+    size_t count = iconv (cd, &src_bytes, &src_remaining, &dst_bytes, &dst_remaining);
+
+    if (count == (size_t) -1) {
+      switch (errno) {
+      case EILSEQ:
+        free(dst_buffer);
+        iconv_close(cd);
+        caml_failwith("Encoding.recode_string: invalid multibyte sequence found in the input");
+
+      case EINVAL:
+        free(dst_buffer);
+        iconv_close(cd);
+        caml_failwith("Encoding.recode_string: incomplete multibyte sequence found in the input");
+
+      case E2BIG: {
+        /* Ouput offest relative to the beginning of the destination
+           buffer: */
+        size_t offset = dst_bytes - dst_buffer;
+
+        /* Try with a buffer 2 times bigger: */
+        len *= 2;
+        dst_buffer = realloc(dst_buffer, len + 1);
+        if (dst_buffer == NULL)
+          caml_failwith("Encoding.recode_string: out of memory");
+
+        dst_bytes = dst_buffer + offset;
+        dst_remaining += len;
+      }
+
+      default:
+        free(dst_buffer);
+        iconv_close(cd);
+        caml_failwith("Encoding.recode_string: unknown error");
+      }
+    }
+  };
+
+  *dst_bytes = 0;
+  result = caml_copy_string(dst_buffer);
+
+  /* Clean-up */
+  free(dst_buffer);
+  iconv_close(cd);
+
+  CAMLreturn(result);
+}

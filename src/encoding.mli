@@ -23,11 +23,9 @@ val system : t
 type code_point = int
     (** Type of a unicode code-point. *)
 
-val recode_string : ?fallback : string -> src : t -> dst : t -> string -> string
-  (** [recode_string ?fallback ~src ~dst str] recode [str] from [src]
-      encoding to [dst] encoding. If [fallback] is provided then
-      characters that cannot be encoded are replaced by [fallback]
-      (which must be in [src] encoding). *)
+val recode_string : src : t -> dst : t -> string -> string
+  (** [recode_string ~src ~dst str] recode [str] from [src] encoding
+      to [dst] encoding. *)
 
 (** {6 Decoding} *)
 

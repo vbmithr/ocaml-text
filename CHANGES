@@ -5,6 +5,8 @@
     matching
   * Adding a syntax extension for converting human readable regular
     expressions over UTF-8 strings into PCRE ones
+  * Faster reimplementation of Encoding.recode_string.
+    (note: the ?fallback argument have been removed, use //TRANSLIT instead)
   * Text.encode use transliteration instead of a fallback string
   * Fixing various bugs in the module Text (thanks to unit tests)
   * Adding unit tests
