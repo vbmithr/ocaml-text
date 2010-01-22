@@ -40,8 +40,24 @@ let encode decoder buf pos len code =
   else
     stub_encode decoder buf pos len code
 
+let equal a b =
+  let len_a = String.length a and len_b = String.length b in
+  let rec loop i =
+    let end_of_a = i = len_a || (i + 2 <= len_a && a.[i] = '/' && a.[i + 1] = '/')
+    and end_of_b = i = len_b || (i + 2 <= len_b && b.[i] = '/' && b.[i + 1] = '/') in
+    if end_of_a && end_of_b then
+      true
+    else if end_of_a || end_of_b then
+      false
+    else if Char.lowercase a.[i] = Char.lowercase b.[i] then
+      loop (i + 1)
+    else
+      false
+  in
+  loop 0
+
 let rec recode_string ?fallback ~src ~dst str =
-  if src = dst then
+  if equal src dst then
     str
   else
     let decoder = decoder src and encoder = encoder dst in

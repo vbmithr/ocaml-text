@@ -5,6 +5,7 @@
     matching
   * Adding a syntax extension for converting human readable regular
     expressions over UTF-8 strings into PCRE ones
+  * Text.encode use transliteration instead of a fallback string
   * Fixing various bugs in the module Text (thanks to unit tests)
   * Adding unit tests
   * Adding support for windows (using GetACP instead of nl_langinfo)

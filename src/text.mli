@@ -39,9 +39,9 @@ val validate : string -> unit
 
 (** {6 Encoding/decoding} *)
 
-val encode : ?fallback : t -> ?encoding : Encoding.t -> t -> string
-  (** [encode ?fallback ?encoding txt] encode the given text with
-      [encoding], which defaults to {!Encoding.system}. *)
+val encode : ?encoding : Encoding.t -> t -> string
+  (** [encode ?encoding txt] encode the given text with [encoding],
+      which defaults to {!Encoding.system} plus transliteration. *)
 
 val decode : ?encoding : Encoding.t -> string -> t
   (** [decode ?encoding str] decode the given string encoded in

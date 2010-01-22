@@ -74,8 +74,10 @@ let validate str = match check str with
    | Encoding/decoding                                               |
    +-----------------------------------------------------------------+ *)
 
-let encode ?fallback ?(encoding=Encoding.system) txt = Encoding.recode_string ?fallback ~src:"UTF-8" ~dst:encoding txt
-let decode ?(encoding=Encoding.system) txt = Encoding.recode_string ~src:encoding ~dst:"UTF-8" txt
+let sys_encoding = Encoding.system ^ "//TRANSLIT"
+
+let encode ?(encoding=sys_encoding) txt = Encoding.recode_string ~src:"UTF-8" ~dst:encoding txt
+let decode ?(encoding=sys_encoding) txt = Encoding.recode_string ~src:encoding ~dst:"UTF-8" txt
 
 let to_ascii txt = encode ~encoding:"ASCII//TRANSLIT" txt
 

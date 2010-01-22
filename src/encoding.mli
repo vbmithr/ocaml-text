@@ -12,6 +12,11 @@
 type t = string
     (** Type of a character encoding *)
 
+val equal : t -> t -> bool
+  (** [equal e1 e2] returns whether [e1] and [e2] denotes the same
+      encoding. It does a caseless comparison of [e1] or [e2] without
+      optionnal suffixes ("//IGNORE" or "//TRANSLIT"). *)
+
 val system : t
   (** The character encoding used by the system *)
 
