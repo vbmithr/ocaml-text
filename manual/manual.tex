@@ -1,0 +1,179 @@
+%% manual.tex
+%% ----------
+%% Copyright : (c) 2010, Jeremie Dimino <jeremie@dimino.org>
+%% Licence   : BSD3
+%%
+%% This file is a part of ocaml-text.
+
+\documentclass{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage{xspace}
+\usepackage{verbatim}
+\usepackage[english]{babel}
+
+%% +-----------------------------------------------------------------+
+%% | Aliases                                                         |
+%% +-----------------------------------------------------------------+
+
+\newcommand{\oct}{\texttt{ocamlt-text}\xspace}
+
+%% +-----------------------------------------------------------------+
+%% | Headers                                                         |
+%% +-----------------------------------------------------------------+
+
+\title{OCaml-text user manual}
+\author{Jérémie Dimino}
+
+\begin{document}
+
+\maketitle
+
+%% +-----------------------------------------------------------------+
+%% | Abstarct                                                        |
+%% +-----------------------------------------------------------------+
+
+\begin{abstract}
+
+\end{abstract}
+
+%% +-----------------------------------------------------------------+
+%% | Table of contents                                               |
+%% +-----------------------------------------------------------------+
+
+\setcounter{tocdepth}{2}
+\tableofcontents
+
+%% +-----------------------------------------------------------------+
+%% | Section                                                         |
+%% +-----------------------------------------------------------------+
+\section{Introduction}
+
+\oct is a library for manipulation of unicode text. It supports
+encoding (resp. decoding) of unicode text into (resp. from) various
+characrter encoding.
+
+%% +-----------------------------------------------------------------+
+%% | Section                                                         |
+%% +-----------------------------------------------------------------+
+\section{Character encoding}
+
+\oct uses \texttt{libiconv} to transcode unicode characters. The
+\texttt{libiconv} itself is quite painfull to use. \oct try to offer a
+cleaner interface. The ocaml interface is located in the module
+\texttt{Encoding}.
+
+\subsection{Decoding}
+
+Decoding means extracting a unicode character from a sequence of
+bytes. To decode text, the first thing to do is to create a decoder;
+this is done by the \texttt{Encoding.decoder} function:
+
+\begin{verbatim}
+val decoder : Encoding.t -> Encoding.decoder
+\end{verbatim}
+
+The type \texttt{Encoding.t} is the type of character encoding. It is
+defined as an alias to the type string. In fact it is simply the name
+of the character encoding. For example \texttt{``UTF-8''},
+\texttt{``ASCII''}, ... are valid character encoding names.
+
+The decoder allow you to decode characters, by using the decode
+function:
+
+\begin{verbatim}
+val decode : decoder -> string -> int -> int -> decoding_result
+\end{verbatim}
+
+It takes as arguments:
+\begin{itemize}
+\item a decoder, of type \texttt{Encoding.decoder}
+\item a buffer $buf$, which contains encoded characters
+\item an offset $ofs$ in the buffer
+\item a length $len$.
+\end{itemize}
+
+\texttt{decode} will read up to $len$ bytes in the buffer, starting at
+the offset $ofs$. If the bytes does not contains a valid multi-byte
+sequence, it will returns \texttt{Dec\_error}. If the decoder read
+$len$ bytes without reaching the end of the multi-byte sequence, it
+returns \texttt{Dec\_need\_more}. If it succeed, it returns
+\texttt{Dec\_ok(code\_point, num)} where \texttt{code\_point} is the
+code-point that has been successfully decoded, ad \texttt{num} is the
+number of bytes consumed.
+
+\subsection{Encoding}
+
+Encoding means transforming a unicode character into a sequence of
+bytes, depending of the character encoding. Encoding characters works
+almost like decoding. The first things is to create a decoder with:
+
+\begin{verbatim}
+val encoder : Encoding.t -> Encoding.encoder
+\end{verbatim}
+
+then, encoding is done by:
+
+\begin{verbatim}
+val encode : encoder -> string -> int -> int -> code_point -> encoding_result
+\end{verbatim}
+
+Arguments have the same leaning that for decoding, exception that the
+buffer will be written insteand of read. \texttt{encode} will write
+into the buffer the multi-byte sequence correspoing to the given
+code-point. On success it returns \texttt{Enc\_ok num} where
+\texttt{num} is the number of bytes written. If the unicode character
+cannot be represented in the given encoding, it returns
+\texttt{Enc\_error}. If the buffer does not contain room for the
+multi-byte seuqnece, it returns \texttt{Enc\_need\_more}..
+
+\subsection{The system encoding}
+
+The system character encoding, \texttt{Encoding.system} is determined
+by environment variables. If you print non-ascii text on a terminal,
+it is a good idea to encode it in the system encoding. You may also
+use transliteration (see section \ref{special-encoding}) to prevent
+failling when unicode character cannot be encoded in the system
+encoding.
+
+\subsection{Special encodings}
+\label{special-encoding}
+
+The \texttt{libiconv} library allow character encoding names to be
+suffixed by \texttt{//IGNORE} or \texttt{//TRANSLIT}. The first one
+means that character that cannot be represented in given encoding are
+skipped silently. The secong means that these characters will be
+approximated. Note that \texttt{//TRANSLIT} depends on the current
+locale.
+
+For example, consider the following program:
+
+\begin{verbatim}
+print_endline (Text.to_ascii "Mon nom est Jérémie")
+\end{verbatim}
+
+According to the current locale, the printing will be different:
+
+\begin{verbatim}
+$ LANG=fr_FR.UTF-8 ./a.out
+Mon nom est Jeremie
+$ LANG=C ./a.out
+Mon nom est J?r?mie
+\end{verbatim}
+
+The advantage of transliteration is that encoding internal
+\texttt{UTF-8} text will never fail, and give an acceptable result.
+
+%% +-----------------------------------------------------------------+
+%% | Section                                                         |
+%% +-----------------------------------------------------------------+
+\section{Text module}
+
+
+%% +-----------------------------------------------------------------+
+%% | Section                                                         |
+%% +-----------------------------------------------------------------+
+\section{Regular expressions with PCRE}
+
+
+\end{document}
