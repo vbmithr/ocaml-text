@@ -1,0 +1,12 @@
+===== 0.3 =====
+
+  * Adding a user manual
+  * Adding support for regular expressions inside arbitrary pattern
+    matching
+  * Adding a syntax extension for converting human readable regular
+    expressions over UTF-8 strings into PCRE ones
+  * Fixing various bugs in the module Text (thanks to unit tests)
+  * Adding unit tests
+  * Adding support for windows (using GetACP instead of nl_langinfo)
+
+===== 0.2 =====
