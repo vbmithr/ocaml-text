@@ -330,6 +330,14 @@ Here is the grammar of regular expressions:
 \item \textbf{\emph{$>!$ regexp}} does a negative look ahead (without consuming any character)
 \item \textbf{\emph{regexp as ident}} matches \textbf{\emph{regexp}}
   and bind the result to the variable \textbf{\emph{ident}}
+\item \textbf{\emph{regexp as ident : type}} matches
+  \textbf{\emph{regexp}} and bind the result to the variable
+  \textbf{\emph{ident}}, mapping it with the function
+  \texttt{\emph{type\_of\_string}}
+\item \textbf{\emph{regexp as ident := func}} matches
+  \textbf{\emph{regexp}} and bind the result to the variable
+  \textbf{\emph{ident}}, mapping it with the function
+  \texttt{\emph{func}} which may be any ocaml expression
 \item \textbf{\emph{$\backslash$ ident}} is a backward reference to a
   previously bounded variable
 \item \textbf{\emph{ident}} matches the regular expression contained
@@ -388,7 +396,7 @@ let rec f = function
   | [] -> None
 \end{verbatim}
 
-If is also possible to use several regular expression in the same
+If is also possible to use several regular expressions in the same
 pattern:
 
 \begin{verbatim}
@@ -439,5 +447,58 @@ If the contents of a variable matches text of length 1, it can be used
 in character set. And if possible, it can be negated by prefixing it
 with a ``\texttt{!}''. All predefined variables and all character set
 variables can be negated.
+
+\subsection{Modes}
+
+Modes may be activated (resp. disabled) by using the syntax
+``\texttt{$\&+$ mode}'' (resp. ``\texttt{$\&-$ mode}'') in a regular
+expression. Available modes are:
+
+\begin{itemize}
+\item \emph{i} or \emph{caseless}: performs case-insentive matching
+\item \emph{m} or \emph{multiline}: pass into multiline mode;
+  \texttt{\^} and \texttt{\$} will match the beginning and end of
+  lines instead of beginning and end of subject
+\item \emph{s}, \emph{singleline} or \emph{dotall}: the \texttt{\_}
+  will match any characters, including newline ones.
+\end{itemize}
+
+\subsection{Greedy vs possessive vs lazy}
+
+The post-operators $?$, $+$, $*$, and more generally $\{...\}$ may be
+suffixed with onoe of $?$ or $+$ to modify their behaviour. By default
+regular expressions are greedy, which means that they match the
+maximum possible they can. Suffixing them with $?$ will make them
+lazy, which means the contrary.
+
+For example, consider the following function:
+
+\begin{verbatim}
+let f = function
+  | <:re< "a"* as x >> -> Some x
+  | _ -> None
+\end{verbatim}
+
+if we apply it on $aaa$ we got:
+
+\begin{verbatim}
+$ f "aaa";;
+- : Text.t option = Some "aaa"
+\end{verbatim}
+
+Now, if we make the matching $"a"*$ lazy:
+
+\begin{verbatim}
+let f = function
+  | <:re< "a"*? as x >> -> Some x
+  | _ -> None
+\end{verbatim}
+
+we got:
+
+\begin{verbatim}
+$ f "aaa";;
+- : Text.t option = Some ""
+\end{verbatim}
 
 \end{document}
