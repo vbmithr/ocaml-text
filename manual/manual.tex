@@ -11,6 +11,8 @@
 \usepackage{xspace}
 \usepackage{verbatim}
 \usepackage[english]{babel}
+\usepackage{amsmath}
+\usepackage{amssymb}
 
 %% +-----------------------------------------------------------------+
 %% | Aliases                                                         |
@@ -30,14 +32,6 @@
 \maketitle
 
 %% +-----------------------------------------------------------------+
-%% | Abstarct                                                        |
-%% +-----------------------------------------------------------------+
-
-\begin{abstract}
-
-\end{abstract}
-
-%% +-----------------------------------------------------------------+
 %% | Table of contents                                               |
 %% +-----------------------------------------------------------------+
 
@@ -49,18 +43,21 @@
 %% +-----------------------------------------------------------------+
 \section{Introduction}
 
-\oct is a library for manipulation of unicode text. It supports
-encoding (resp. decoding) of unicode text into (resp. from) various
-characrter encoding.
+\oct is a library for manipulation of unicode text. It can replace the
+\texttt{String} module of the standard library when you need to access
+to strings as sequence of UTF-8 encoded unicode characters.
+
+It also supports encoding (resp. decoding) of unicode text into
+(resp. from) a lot of different characrter encodings.
 
 %% +-----------------------------------------------------------------+
 %% | Section                                                         |
 %% +-----------------------------------------------------------------+
 \section{Character encoding}
 
-\oct uses \texttt{libiconv} to transcode unicode characters. The
-\texttt{libiconv} itself is quite painfull to use. \oct try to offer a
-cleaner interface. The ocaml interface is located in the module
+\oct uses \texttt{libiconv} to transcode between variaous character
+encodings. The \texttt{libiconv} itself is quite painfull to use. \oct
+try to offer a cleaner interface, which is located in the module
 \texttt{Encoding}.
 
 \subsection{Decoding}
@@ -75,8 +72,8 @@ val decoder : Encoding.t -> Encoding.decoder
 
 The type \texttt{Encoding.t} is the type of character encoding. It is
 defined as an alias to the type string. In fact it is simply the name
-of the character encoding. For example \texttt{``UTF-8''},
-\texttt{``ASCII''}, ... are valid character encoding names.
+of the character encoding, such as \texttt{``UTF-8''},
+\texttt{``ASCII''}, ...
 
 The decoder allow you to decode characters, by using the decode
 function:
@@ -144,15 +141,19 @@ suffixed by \texttt{//IGNORE} or \texttt{//TRANSLIT}. The first one
 means that character that cannot be represented in given encoding are
 skipped silently. The secong means that these characters will be
 approximated. Note that \texttt{//TRANSLIT} depends on the current
-locale.
+locale settings.
 
 For example, consider the following program:
 
 \begin{verbatim}
-print_endline (Text.to_ascii "Mon nom est Jérémie")
+print_endline (Encoding.recode_string
+                 ~src:"UTF-8"
+                 ~dst:"ASCII//TRANSLIT"
+                 "Mon nom est Jérémie")
 \end{verbatim}
 
-According to the current locale, the printing will be different:
+According to the current locale settings, the printing will be
+different:
 
 \begin{verbatim}
 $ LANG=fr_FR.UTF-8 ./a.out
@@ -161,19 +162,282 @@ $ LANG=C ./a.out
 Mon nom est J?r?mie
 \end{verbatim}
 
-The advantage of transliteration is that encoding internal
-\texttt{UTF-8} text will never fail, and give an acceptable result.
+The advantage of transliteration is that encoding text will never
+fail, and give an acceptable result.
 
 %% +-----------------------------------------------------------------+
 %% | Section                                                         |
 %% +-----------------------------------------------------------------+
-\section{Text module}
+\section{Text manipulation}
 
+The \texttt{Text} module of \oct is designed to handle unicode text
+manipulation. By unicode text, we means sequence of unicode
+characters, and not sequence of bytes. However, to stay compatible
+with the rest of the ocaml world which uses only standard latin-1
+strings, and to keep pattern matching over unicode text, \oct choose
+to represent text as UTF-8 strings, without using an abstract
+type. This is OK as long as you respect the following rules:
+
+\begin{itemize}
+\item \textbf{Text is immutable:} never modify in place the contents of
+  a string containing text
+\item \textbf{Never trust inputs:} always check for
+  validity text comming from the outside world
+\item \textbf{Use the right functions:} if you want to iterate over
+  characters of a text, compute the number of characters contained
+  in a text, ...  use \texttt{UTF-8} aware functions
+\end{itemize}
+
+The module \texttt{Text} always assumes that strings it receive
+contains valid \texttt{UTF-8} encoded text. It is your job to ensure
+it is the case.
+
+\subsection{UTF-8 validation}
+
+\emph{UTF-8 validation} consists on verifying whether a string
+contains valid UTF-8 encoded text. This can be done with one of these
+two functions:
+
+\begin{verbatim}
+val check : string -> string option
+val validate : string -> unit
+\end{verbatim}
+
+\texttt{Text.check} receive a string, and returns \texttt{Some error}
+if the given string does not contains valid UTF-8 encoded
+text. Otherwise it returns \texttt{None}. \texttt{Text.validate} does
+the same thing but raises an exception instead of returning an option.
+
+For example:
+
+\begin{verbatim}
+# Text.check "Hello";;
+- : string option = None
+# Text.check "\xff";;
+- : string option = Some "at offset 0: invalid start of UTF-8 sequence"
+# Text.validate "Hello";;
+- : unit = ()
+# Text.validate "\xff";;
+Exception:
+Text.Invalid ("at offset 0: invalid start of UTF-8 sequence", "\255").
+\end{verbatim}
+
+\subsection{Iteration}
+
+Since UTF-8 encoded character use variable sequence length, iteration
+over a text can not be done the same way as iteration over a byte
+array. Indeed, to get the nth character of a text, you need to scan
+the whole text before the character.
+
+Instead, \oct provides an API to iterate over a text by using pointers
+(of type \texttt{Text.pointer}). A pointer represent the position of a
+UTF-8 encoded unicode character in a text. You can create a pointer by
+using one of these three functions:
+
+\begin{verbatim}
+val pointer_l : t -> pointer
+  (** Returns a pointer to the left of the given text *)
+
+val pointer_r : t -> pointer
+  (** Returns a pointer to the right of the given text *)
+
+val pointer_at : t -> int -> pointer
+  (** [pointer_at txt n] returns a pointer to the character at
+      position [n] in [txt]. *)
+\end{verbatim}
+
+Once you have a pointer, you scan text to the right or left. Here is a
+simple example, where we scan the given text to find a character ``.'':
+
+\begin{verbatim}
+let search txt =
+  let rec loop pointer =
+    match Text.next pointer with
+      | None ->
+          (* End of the text *)
+          false
+      | Some(".", pointer) ->
+          true
+      | Some(ch, pointer) ->
+          loop pointer
+  in
+  loop (Text.pointer_l txt)
+\end{verbatim}
+
+Each call to \texttt{Text.next} returns either \texttt{None} if the
+end of the text have been reached, or \texttt{Some(ch, pointer)} when:
+
+\begin{itemize}
+\item \texttt{ch} is the character pointed by the pointer
+\item \texttt{pointer} is a pointer to the next character or the end of text
+\end{itemize}
+
+\texttt{Text.prev} works in the same way.
+
+Of course, using pointers is the last resort when the functions of the
+module \texttt{Text} are not sufficient.
 
 %% +-----------------------------------------------------------------+
 %% | Section                                                         |
 %% +-----------------------------------------------------------------+
 \section{Regular expressions with PCRE}
 
+If compiled with support for PCRE, \oct define a syntax extension for
+writing human readable regular expressions in ocaml sources.
+
+\subsection{Enabling the syntax extension}
+
+If you are using \texttt{ocamlfind}, simply adds the ``text.pcre'' to
+the list of packages. For example, to compile a file ``foo.ml'' using
+the syntax extension, just type:
+
+\begin{verbatim}
+$ ocamlfind ocamlc -syntax camlp4o -package text.pcre -linkpkg -o foo foo.ml
+\end{verbatim}
+
+\subsection{Syntax of regular expression}
+
+Here is the grammar of regular expressions:
+
+\begin{itemize}
+\item \textbf{\emph{string literal}} matches exactly the given string
+\item \textbf{\emph{\_}} (underscore) matches any character, except
+  new-line in non multiline mode
+\item \textbf{\emph{regexp regexp}} match the concatenation of the two
+  given regular expression
+\item \textbf{\emph{regexp $\mid$ regexp}} matches the first regular
+  expression or the second
+\item \textbf{\emph{regexp\{n\}}} matches n times the given regular
+  expression
+\item \textbf{\emph{regexp\{n-m\}}} matches at least $n$ times and up to
+  $m$ times the given regular expression
+\item \textbf{\emph{regexp\{n+\}}} matches at least $n$ times the given
+  regular expression, and maybe more
+\item \textbf{\emph{regexp*}} matches the given regular expression 0
+  time or more. This is the same as \textbf{\emph{regexp\{0+\}}}
+\item \textbf{\emph{regexp+}} matches the given regular expression 1
+  time or more. This is the same as \textbf{\emph{regexp\{1+\}}}
+\item \textbf{\emph{regexp?}} matches the given regular expression 0
+  time or 1 time. This is the same as \textbf{\emph{regexp\{0-1\}}}
+\item \textbf{\emph{[ character-set ]}} matches any character of
+  \textbf{\emph{character-set}}
+\item \textbf{\emph{[\^\ character-set ]}} matches any character that
+  is not a member of \textbf{\emph{character-set}}
+\item \textbf{\emph{( regexp )}} matches \textbf{\emph{regexp}}
+\item \textbf{\emph{$<$ regexp}} does a look behing
+\item \textbf{\emph{$<!$ regexp}} does a negative look behing
+\item \textbf{\emph{$>$ regexp}} does a look ahead (without consuming any character)
+\item \textbf{\emph{$>!$ regexp}} does a negative look ahead (without consuming any character)
+\item \textbf{\emph{regexp as ident}} matches \textbf{\emph{regexp}}
+  and bind the result to the variable \textbf{\emph{ident}}
+\item \textbf{\emph{$\backslash$ ident}} is a backward reference to a
+  previously bounded variable
+\item \textbf{\emph{ident}} matches the regular expression contained
+  in the variable \textbf{\emph{ident}}
+\item \textbf{\emph{if ident then regexp}} matches
+  \textbf{\emph{regexp}} if \textbf{\emph{ident}} as been previously
+  matched.
+\item \textbf{\emph{if ident then regexp else regexp}} is the same as
+  the previous contruction but with an else branch.
+\item \textbf{\emph{$\&+$ mode}} enable the given mode
+\item \textbf{\emph{$\&-$ mode}} disable the given mode
+\end{itemize}
+
+A \emph{string literal} can be any string, with classic ocaml escape
+sequence. Moreover, it also support the new escape sequence
+$\backslash u\{XXXX\}$ where $XXXX$ is a unicode code-point written in
+hexadecimal. For example $\backslash u\{e9\}$ correspond to the
+latin-1 character ``é''.
+
+\subsection{Quotations}
+
+The syntax extension defines two camlp4 quotations, that might be used
+in expressions or in patterns. The first one is ``\texttt{re\_text}'' which
+takes a regular expression as defined before and convert it to a
+string, following the syntax of PCRE.
+
+For example:
+
+\begin{verbatim}
+let re = Pcre.regexp <:re_text< "foo" _* "bar" >>
+\end{verbatim}
+
+The goal of this quotation is to make regular expression more
+readable. The second quotation, ``\texttt{re}'' expands into a
+compiled regular expression, of type \texttt{Pcre.regexp}, for examples:
+
+\begin{verbatim}
+let re = <:re< "foo" _* "bar" >>
+let f str = Pcre.exec ~rex:<:re< "foo" _* "bar" >> str
+\end{verbatim}
+
+Note that in both case, the regular expression will be compiled only
+one time. And in the second example, it will be compiled the first
+time it is used (by using lazy evaluation).
+
+But the more interesting use of this quotation is in pattern
+matchings. It is possible to put a regular expression in an arbitrary
+pattern, and capture variables.
+
+Here is a simple example of what you can do:
+
+\begin{verbatim}
+let rec f = function
+  | <:re< "foo" (_* as x) "bar" >> :: _ -> Some x
+  | _ :: l -> f l
+  | [] -> None
+\end{verbatim}
+
+If is also possible to use several regular expression in the same
+pattern:
+
+\begin{verbatim}
+  match v with
+    | <:re< "foo" (_* as x) "bar" >> :: <:re< "a"* " " "b"* >> :: _ -> ...
+    ...
+\end{verbatim}
+
+\subsection{Variables}
+
+Variables are identifiers, starting with a lower or upper case letter,
+which are bound to a regular expression. By default \oct defines
+variables for each posix characters class: \texttt{lower},
+\texttt{upper}, \texttt{alpha}, \texttt{digit}, \texttt{alnum},
+\texttt{punct}, \texttt{graph} \texttt{print}, \texttt{blank},
+\texttt{cntrl}, \texttt{xdigit}, \texttt{space} \texttt{ascii},
+\texttt{word}. Each one matches exactly one character. Note that they
+match only ASCII letters.
+
+\oct also defines variables for unicode properties. For example
+\texttt{Ll}, will match all lowercase letters, including non-ASCII
+ones. For a list of all unicode properties, look at the manual page
+\texttt{pcresyntax(3)}.
+
+\oct defines variables for each script, such as \texttt{Arabic} or
+\texttt{Greek}.
+
+In addition, it defines the following variables:
+
+\begin{itemize}
+\item \texttt{hspace} matching any horizontal space character, including non-ASCII ones
+\item \texttt{vspace} matching any vertical space character, including non-ASCII ones
+\item \texttt{bound} matching any word boundary character, including non-ASCII ones
+\item \texttt{bos} matching the beginning of a subject, whatever the current mode is
+\item \texttt{eos} matching the end of a subject, whatever the current mode is
+\end{itemize}
+
+New variables can be defined by toplevel bindings. For instance:
+
+\begin{verbatim}
+let digit3 = <:re< ["0"-"9"]{3} >>
+\end{verbatim}
+
+will generate the binding for the \texttt{digit3} variable and define
+the regexp variable \texttt{digit3} for the rest of the file.
+
+If the contents of a variable matches text of length 1, it can be used
+in character set. And if possible, it can be negated by prefixing it
+with a ``\texttt{!}''. All predefined variables and all character set
+variables can be negated.
 
 \end{document}
