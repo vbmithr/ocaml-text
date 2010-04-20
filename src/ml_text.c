@@ -285,6 +285,7 @@ CAMLprim value ml_iconv_recode_string(value enc_src, value enc_dst, value str)
 
         dst_bytes = dst_buffer + offset;
         dst_remaining += len;
+        break;
       }
 
       default:
