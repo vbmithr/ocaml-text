@@ -1,0 +1,18 @@
+# -*- conf -*-
+name = "text"
+version = "$(pkg_version)"
+browse_interfaces = "Text Encoding"
+description = "Character encodings and UTF-8 text manipulation"
+archive(byte) = "text.cma"
+archive(native) = "text.cmxa"
+
+package "pcre" (
+  exists_if = "text_pcre.cma"
+  version = "$(pkg_version)"
+  description = "Syntactic sugars for regular expression using PCRE"
+  requires = "text pcre camlp4"
+  archive(byte) = "text-pcre.cma"
+  archive(native) = "text-pcre.cmxa"
+  archive(syntax,preprocessor) = "text.cma text-pcre-syntax.cma"
+  archive(syntax,toploop) += "text-pcre-syntax.cma"
+)
