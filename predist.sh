@@ -10,5 +10,11 @@ make manual.pdf
 make clean-aux
 cd ..
 
+# The makefile is only used to create the tarball
+rm -f Makefile
+
+# Add oasis stuff:
+OASIS setup
+
 # Remove this file
 rm -f predist.sh

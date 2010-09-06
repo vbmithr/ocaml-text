@@ -1,5 +1,6 @@
 # -*- conf -*-
-<src/text.cm{,x}a>: use_libtext
-<src/text_pcre.*>: pkg_pcre
-<syntax/*>: syntax_camlp4o, pkg_camlp4.lib, pkg_camlp4.quotations.o, pkg_camlp4.extend
-<tests/*>: use_libtext, syntax_camlp4o, pkg_camlp4.macro
+
+<syntax/*.ml>: syntax_camlp4o
+
+# OASIS_START
+# OASIS_STOP

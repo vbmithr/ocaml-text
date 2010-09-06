@@ -29,8 +29,9 @@ bindings for ocaml to have regular expression support.
 
 To build and install it just type:
 
-  $ make all
-  $ make install
+  $ ocaml setup.ml -configure
+  $ ocaml setup.ml -build
+  $ ocaml setup.ml -install
 
 This will install the "text" package (ocamlfind is required), and the
 "text.pcre" if compiled with support for pcre.

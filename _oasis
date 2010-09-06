@@ -1,0 +1,101 @@
+# +-------------------------------------------------------------------+
+# | Package parameters                                                |
+# +-------------------------------------------------------------------+
+
+OASISFormat: 0.1
+Name: ocaml-text
+Version: 0.3
+LicenseFile: LICENSE
+License: BSD3
+Authors: Jérémie Dimino
+Homepage: http://ocaml-text.forge.ocamlcore.org/
+BuildTools: ocamlbuild
+Plugins: DevFiles (0.1.0), META (0.1.0)
+Synopsis: ocaml-text
+Description:
+  OCaml-Text is an OCaml library for dealing with "text",
+  i.e. sequences of unicode characters, in a convenient way.
+
+# +-------------------------------------------------------------------+
+# | Flags                                                             |
+# +-------------------------------------------------------------------+
+
+Flag pcre
+  Description: support for pcre
+  Default: false
+
+# +-------------------------------------------------------------------+
+# | Libraries                                                         |
+# +-------------------------------------------------------------------+
+
+Library text
+  Path: src
+  Install: true
+  Modules: Text, Encoding
+  XMETADescription: Character encodings and UTF-8 text manipulation
+  CSources: ml_text.c
+
+Library "text-pcre"
+  Path: src
+  FindlibName: pcre
+  FindlibParent: text
+  Build$: flag(pcre)
+  Install$: flag(pcre)
+  Modules: Text_pcre
+  BuildDepends: pcre
+  XMETADescription: Runtime for text.pcre.syntax
+
+Library "text-pcre-syntax"
+  Path: syntax
+  FindlibName: syntax
+  FindlibParent: text-pcre
+  Build$: flag(pcre)
+  Install$: flag(pcre)
+  InternalModules:
+    Pa_text_main,
+    Pa_text_parse,
+    Pa_text_regexp,
+    Pa_text_env,
+    Pa_text_types,
+    Pa_text_util
+  BuildDepends: camlp4, camlp4.lib, camlp4.quotations.o, camlp4.extend
+  XMETAType: syntax
+  XMETADescription: Syntactic sugars for regular expression using PCRE
+  XMETARequires: camlp4.lib
+
+# +-------------------------------------------------------------------+
+# | Doc                                                               |
+# +-------------------------------------------------------------------+
+
+Document "text-manual"
+  Title: OCamlText user manual
+  Type: custom (0.1.0)
+  Install: true
+  XCustom: make -C manual manual.pdf
+  DataFiles: manual/manual.pdf
+  InstallDir: $pdfdir
+
+Document "text-api"
+  Title: API reference for OCamlText
+  Type: ocamlbuild (0.1.0)
+  Install: true
+  InstallDir: $htmldir/api
+  DataFiles: style.css
+  BuildTools: ocamldoc
+  XOCamlbuildPath: ./
+  XOCamlbuildLibraries: text, text.pcre
+
+# +-------------------------------------------------------------------+
+# | Tests                                                             |
+# +-------------------------------------------------------------------+
+
+Executable test
+  Path: tests
+  Install: false
+  CompiledObject: best
+  MainIs: test.ml
+  BuildDepends: text
+
+Test main
+  Command: $test
+  TestTools: test
