@@ -7,7 +7,7 @@ archive(byte) = "text.cma"
 archive(native) = "text.cmxa"
 
 package "pcre" (
-  exists_if = "text_pcre.cma"
+  exists_if = "text-pcre.cma"
   version = "$(pkg_version)"
   description = "Syntactic sugars for regular expression using PCRE"
   requires = "text pcre camlp4"
