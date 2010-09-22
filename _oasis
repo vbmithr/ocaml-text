@@ -34,6 +34,8 @@ Library text
   Install: true
   Modules: Text, Encoding
   CSources: ml_text.c
+  if !system(linux)
+    CCLib: -liconv
 
 Library "text-pcre"
   Path: src
