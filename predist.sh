@@ -10,8 +10,11 @@ make manual.pdf
 make clean-aux
 cd ..
 
-# Add oasis stuff:
-OASIS setup
+# Add OASIS stuff
+oasis setup
+
+# Make the configure script executable
+chmod +x configure
 
 # Cleanup
 rm -f predist.sh make-dist.sh

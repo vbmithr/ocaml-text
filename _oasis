@@ -10,7 +10,7 @@ License: BSD3
 Authors: Jérémie Dimino
 Homepage: http://ocaml-text.forge.ocamlcore.org/
 BuildTools: ocamlbuild
-Plugins: DevFiles (0.1.0)
+Plugins: DevFiles (0.2)
 Synopsis: ocaml-text
 Description:
   OCaml-Text is an OCaml library for dealing with "text",
@@ -65,7 +65,7 @@ Library "text-pcre-syntax"
 
 Document "text-manual"
   Title: OCamlText user manual
-  Type: custom (0.1.0)
+  Type: custom (0.2)
   Install: true
   XCustom: make -C manual manual.pdf
   DataFiles: manual/manual.pdf
@@ -73,7 +73,7 @@ Document "text-manual"
 
 Document "text-api"
   Title: API reference for OCamlText
-  Type: ocamlbuild (0.1.0)
+  Type: ocamlbuild (0.2)
   Install: true
   InstallDir: $htmldir/api
   DataFiles: style.css
