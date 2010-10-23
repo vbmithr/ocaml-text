@@ -158,6 +158,12 @@ val compare : t -> t -> int
 val icompare : t -> t -> int
   (** Compares two texts, case-insensitive *)
 
+val transform : t -> t
+  (** [transform str] transforms [str] in a way such that comparing
+      two string [str1] and [str2] transformed with
+      [Pervasives.compare] give the same result as comparing them with
+      {!compare}. *)
+
 (** {6 Transformations} *)
 
 val rev : t -> t

@@ -75,7 +75,7 @@ static struct custom_operations ops = {
    +-----------------------------------------------------------------+ */
 
 /* This function returns the system encoding: */
-CAMLprim value ml_iconv_init(value unit)
+CAMLprim value ml_text_init(value unit)
 {
   CAMLparam1(unit);
   /* Set the locale acording to environment variables: */
@@ -98,7 +98,7 @@ CAMLprim value ml_iconv_init(value unit)
    | Decoding                                                        |
    +-----------------------------------------------------------------+ */
 
-CAMLprim value ml_iconv_decoder(value enc)
+CAMLprim value ml_text_decoder(value enc)
 {
   CAMLparam1(enc);
 
@@ -115,7 +115,7 @@ CAMLprim value ml_iconv_decoder(value enc)
     }
 }
 
-CAMLprim value ml_iconv_decode(value cd_val, value buf_val, value pos_val, value len_val)
+CAMLprim value ml_text_decode(value cd_val, value buf_val, value pos_val, value len_val)
 {
   CAMLparam4(cd_val, buf_val, pos_val, len_val);
 
@@ -143,7 +143,7 @@ CAMLprim value ml_iconv_decode(value cd_val, value buf_val, value pos_val, value
    | Encoding                                                        |
    +-----------------------------------------------------------------+ */
 
-CAMLprim value ml_iconv_encoder(value enc)
+CAMLprim value ml_text_encoder(value enc)
 {
   CAMLparam1(enc);
 
@@ -160,7 +160,7 @@ CAMLprim value ml_iconv_encoder(value enc)
     }
 }
 
-CAMLprim value ml_iconv_encode(value cd_val, value buf_val, value pos_val, value len_val, value code_val)
+CAMLprim value ml_text_encode(value cd_val, value buf_val, value pos_val, value len_val, value code_val)
 {
   CAMLparam5(cd_val, buf_val, pos_val, len_val, code_val);
 
@@ -229,7 +229,7 @@ CAMLprim value ml_text_compare(value s1, value s2) {
    | String recoding                                                 |
    +-----------------------------------------------------------------+ */
 
-CAMLprim value ml_iconv_recode_string(value enc_src, value enc_dst, value str)
+CAMLprim value ml_text_recode_string(value enc_src, value enc_dst, value str)
 {
   CAMLparam3(str, enc_src, enc_dst);
   CAMLlocal1(result);
@@ -304,4 +304,25 @@ CAMLprim value ml_iconv_recode_string(value enc_src, value enc_dst, value str)
   iconv_close(cd);
 
   CAMLreturn(result);
+}
+
+/* +-----------------------------------------------------------------+
+   | Text normalization                                              |
+   +-----------------------------------------------------------------+ */
+
+CAMLprim value ml_text_strxfrm(value string)
+{
+  CAMLparam1(string);
+
+  size_t length = caml_string_length(string) + 1;
+  char buffer[length];
+
+  size_t result = strxfrm(buffer, String_val(string), length);
+  if (result <= length)
+    CAMLreturn(caml_copy_string(buffer));
+  else {
+    char buffer[result];
+    strxfrm(buffer, String_val(string), result);
+    CAMLreturn(caml_copy_string(buffer));
+  }
 }

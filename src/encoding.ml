@@ -20,12 +20,12 @@ type encoding_result =
   | Enc_need_more
   | Enc_error
 
-external init : unit -> t = "ml_iconv_init"
-external decoder : t -> decoder = "ml_iconv_decoder"
-external encoder : t -> encoder = "ml_iconv_encoder"
-external stub_decode : decoder -> string -> int -> int -> decoding_result = "ml_iconv_decode"
-external stub_encode : encoder -> string -> int -> int -> code_point -> encoding_result = "ml_iconv_encode"
-external stub_recode_string : t -> t -> string -> string = "ml_iconv_recode_string"
+external init : unit -> t = "ml_text_init"
+external decoder : t -> decoder = "ml_text_decoder"
+external encoder : t -> encoder = "ml_text_encoder"
+external stub_decode : decoder -> string -> int -> int -> decoding_result = "ml_text_decode"
+external stub_encode : encoder -> string -> int -> int -> code_point -> encoding_result = "ml_text_encode"
+external stub_recode_string : t -> t -> string -> string = "ml_text_recode_string"
 
 let system = init ()
 

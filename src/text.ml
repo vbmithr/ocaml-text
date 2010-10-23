@@ -687,3 +687,6 @@ external ml_compare : string -> string -> int = "ml_text_compare"
 
 let compare t1 t2 = ml_compare (encode t1) (encode t2)
 let icompare t1 t2 = ml_compare (encode (lower t1)) (encode (lower t2))
+
+external ml_transform : t -> t = "ml_text_strxfrm"
+let transform str = ml_transform (encode str)
