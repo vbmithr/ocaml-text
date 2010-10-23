@@ -41,7 +41,7 @@ This will install the "text" package (ocamlfind is required), and the
 The last development version of ocaml-text can always be found in the
 darcs repository hosted at darcs.ocamlcore.org:
 
-  $ darcs get http://darcs.ocamlcore.org/repos/ocaml-text/ocaml-text
+  $ darcs get http://darcs.ocamlcore.org/repos/ocaml-text
 
 local variables:
 mode: outline
