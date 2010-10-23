@@ -313,16 +313,8 @@ CAMLprim value ml_text_recode_string(value enc_src, value enc_dst, value str)
 CAMLprim value ml_text_strxfrm(value string)
 {
   CAMLparam1(string);
-
-  size_t length = caml_string_length(string) + 1;
-  char buffer[length];
-
-  size_t result = strxfrm(buffer, String_val(string), length);
-  if (result <= length)
-    CAMLreturn(caml_copy_string(buffer));
-  else {
-    char buffer[result];
-    strxfrm(buffer, String_val(string), result);
-    CAMLreturn(caml_copy_string(buffer));
-  }
+  size_t length = strxfrm(NULL, String_val(string), 0);
+  char buffer[length + 1];
+  strxfrm(buffer, String_val(string), length + 1);
+  CAMLreturn(caml_copy_string(buffer));
 }
