@@ -16,35 +16,23 @@
 #include <wctype.h>
 #include <stdio.h>
 
-#include <caml/mlvalues.h>
 #include <caml/alloc.h>
 #include <caml/memory.h>
 #include <caml/custom.h>
 #include <caml/fail.h>
 
 /* There is no nl_langinfo on windows: */
-#ifdef __MINGW32__
+#ifdef _WIN32
 #include <windows.h>
 #else
 #include <langinfo.h>
 #endif
 
-/* define the easiest encoding to use: */
-#ifdef ARCH_BIG_ENDIAN
-#define NATIVE_UCS "UCS-4BE"
-#else
-#define NATIVE_UCS "UCS-4LE"
-#endif
-
-/* Constant for ocaml constructors: */
-#define Val_need_more (Val_int(0))
-#define Val_error (Val_int(1))
+#include "common.h"
 
 /* +-----------------------------------------------------------------+
    | Custom block for iconv descriptors                              |
    +-----------------------------------------------------------------+ */
-
-#define Iconv_val(v) (*(iconv_t*)Data_custom_val(v))
 
 void ml_iconv_finalize(value cd)
 {
@@ -81,7 +69,7 @@ CAMLprim value ml_text_init(value unit)
   /* Set the locale acording to environment variables: */
   setlocale(LC_CTYPE, "");
   setlocale(LC_COLLATE, "");
-#ifdef __MINGW32__
+#ifdef _WIN32
   /* Use codepage on windows */
   char codeset[128];
   sprintf(codeset, "CP%d", GetACP());
@@ -120,9 +108,9 @@ CAMLprim value ml_text_decode(value cd_val, value buf_val, value pos_val, value 
   CAMLparam4(cd_val, buf_val, pos_val, len_val);
 
   uint32 code;
-  size_t len = Int_val(len_val);
+  size_t len = Long_val(len_val);
   size_t in_left = len;
-  char *in_bytes = String_val(buf_val) + Int_val(pos_val);
+  char *in_bytes = String_val(buf_val) + Long_val(pos_val);
   size_t out_left = 4;
   char *out_bytes = (char*)&code;
 
@@ -165,11 +153,11 @@ CAMLprim value ml_text_encode(value cd_val, value buf_val, value pos_val, value 
   CAMLparam5(cd_val, buf_val, pos_val, len_val, code_val);
 
   uint32 code = Int_val(code_val);
-  size_t len = Int_val(len_val);
+  size_t len = Long_val(len_val);
   size_t in_left = 4;
   char *in_bytes = (char*)&code;
   size_t out_left = len;
-  char *out_bytes = String_val(buf_val) + Int_val(pos_val);
+  char *out_bytes = String_val(buf_val) + Long_val(pos_val);
 
   iconv(Iconv_val(cd_val), &in_bytes, &in_left, &out_bytes, &out_left);
 

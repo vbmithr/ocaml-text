@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 14090b0c674f5c9731129c4bbc535a88) *)
+(* DO NOT EDIT (digest: 57d442fc143376898ea3250036016f41) *)
 module OASISGettext = struct
 # 21 "/home/dim/sources/oasis/src/oasis/OASISGettext.ml"
   
@@ -454,10 +454,15 @@ let package_default =
      MyOCamlbuildBase.lib_ocaml =
        [
           ("src/text", ["src"]);
+          ("src/text-bigarray", ["src"]);
           ("src/text-pcre", ["src"]);
           ("syntax/text-pcre-syntax", ["syntax"])
        ];
-     lib_c = [("text", "src", [])];
+     lib_c =
+       [
+          ("text", "src", ["src/common.h"]);
+          ("text-bigarray", "src", ["src/common.h"])
+       ];
      flags = [];
      }
   ;;

@@ -35,7 +35,15 @@ Library text
   Path: src
   Install: true
   Modules: Text, Encoding
-  CSources: ml_text.c
+  CSources: ml_text.c, common.h
+
+Library "text-bigarray"
+  Path: src
+  Install: true
+  FindlibParent: text
+  BuildDepends: text, bigarray
+  Modules: Encoding_bigarray
+  CSources: ml_text_bigarray.c, common.h
 
 Library "text-pcre"
   Path: src

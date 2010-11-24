@@ -16,3 +16,12 @@ package "pcre" (
   archive(syntax,preprocessor) = "text.cma text-pcre-syntax.cma"
   archive(syntax,toploop) += "text-pcre-syntax.cma"
 )
+
+package "bigarray" (
+  exists_if = "text-bigarray.cma"
+  version = "$(pkg_version)"
+  description = "Encoding/decoding to/from bigarrays"
+  requires = "text bigarray"
+  archive(byte) = "text-bigarray.cma"
+  archive(native) = "text-bigarray.cmxa"
+)
