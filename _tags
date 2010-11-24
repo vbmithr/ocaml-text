@@ -1,15 +1,11 @@
 # -*- conf -*-
 
 <syntax/*.ml>: syntax_camlp4o
+<src/*>: use_iconv
 
 # OASIS_START
-# DO NOT EDIT (digest: fe296c44597486897d6238d409d51430)
+# DO NOT EDIT (digest: 4bdfb20c1b0f51f58ec9607c04cf5ccf)
 # Library text
-<src/text.{cma,cmxa}>: oasis_library_text_cclib
-"src/libtext.lib": oasis_library_text_cclib
-"src/dlltext.dll": oasis_library_text_cclib
-"src/libtext.a": oasis_library_text_cclib
-"src/dlltext.so": oasis_library_text_cclib
 <src/text.{cma,cmxa}>: use_libtext
 # Executable test
 <tests/test.{native,byte}>: use_text

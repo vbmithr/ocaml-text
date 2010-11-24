@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 44ea3047b156d9ff6daf45cfa00e08ff) *)
+(* DO NOT EDIT (digest: 14090b0c674f5c9731129c4bbc535a88) *)
 module OASISGettext = struct
 # 21 "/home/dim/sources/oasis/src/oasis/OASISGettext.ml"
   
@@ -458,25 +458,27 @@ let package_default =
           ("syntax/text-pcre-syntax", ["syntax"])
        ];
      lib_c = [("text", "src", [])];
-     flags =
-       [
-          (["oasis_library_text_cclib"; "link"],
-            [
-               (OASISExpr.EBool true, S []);
-               (OASISExpr.ENot (OASISExpr.ETest ("system", "linux")),
-                 S [A "-cclib"; A "-liconv"])
-            ]);
-          (["oasis_library_text_cclib"; "ocamlmklib"; "c"],
-            [
-               (OASISExpr.EBool true, S []);
-               (OASISExpr.ENot (OASISExpr.ETest ("system", "linux")),
-                 S [A "-liconv"])
-            ])
-       ];
+     flags = [];
      }
   ;;
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default package_default;;
 
 (* OASIS_STOP *)
-Ocamlbuild_plugin.dispatch dispatch_default;;
+
+open Ocamlbuild_plugin
+
+let my_dispatch = function
+  | Before_options ->
+      Options.make_links := false
+
+  | After_rules ->
+      if Pathname.read "need_liconv" = "true" then begin
+        flag ["ocamlmklib"; "c"; "use_iconv"] & A"-liconv";
+        flag ["link"; "ocaml"; "use_iconv"] & S[A"-cclib"; A"-liconv"]
+      end
+
+  | _ ->
+      ()
+
+let () = dispatch (fun hook -> dispatch_default hook; my_dispatch hook)
