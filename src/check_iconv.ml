@@ -29,8 +29,17 @@ let ocamlc = ref "ocamlc"
 let ext_obj = ref ".o"
 let exec_name = ref "a.out"
 
+let log_file = ref ""
+
 let compile stub_file caml_file args =
-  Printf.ksprintf Sys.command "%s -custom %s %s %s" !ocamlc args (Filename.quote stub_file) (Filename.quote caml_file) = 0
+  Printf.ksprintf
+    Sys.command
+    "%s -custom %s %s %s 2> %s"
+    !ocamlc args
+    (Filename.quote stub_file)
+    (Filename.quote caml_file)
+    (Filename.quote !log_file)
+  = 0
 
 let write_result result =
   let oc = open_out "need_liconv" in
@@ -62,8 +71,11 @@ let () =
   output_string oc caml_code;
   close_out oc;
 
+  log_file := Filename.temp_file "ocaml_text" ".log";
+
   (* Cleanup things on exit. *)
   at_exit (fun () ->
+             safe_remove !log_file;
              safe_remove stub_file;
              safe_remove (Filename.chop_extension (Filename.basename stub_file) ^ !ext_obj);
              safe_remove !exec_name;
