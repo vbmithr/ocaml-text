@@ -31,11 +31,24 @@ let exec_name = ref "a.out"
 
 let log_file = ref ""
 
+(* Search for iconv.h in standard directories. *)
+let c_args =
+  let rec loop = function
+    | [] ->
+        ""
+    | dir :: dirs ->
+        if Sys.file_exists (dir ^ "/include/iconv.h") then
+          Printf.sprintf "-ccopt -I%s/include -cclib -L%s/lib" dir dir
+        else
+          loop dirs
+  in
+  loop ["/usr"; "/usr/local"]
+
 let compile stub_file caml_file args =
   Printf.ksprintf
     Sys.command
-    "%s -custom %s %s %s 2> %s"
-    !ocamlc args
+    "%s %s -custom %s %s %s 2> %s"
+    !ocamlc args c_args
     (Filename.quote stub_file)
     (Filename.quote caml_file)
     (Filename.quote !log_file)

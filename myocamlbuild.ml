@@ -481,7 +481,21 @@ let my_dispatch = function
       if Pathname.read "need_liconv" = "true" then begin
         flag ["ocamlmklib"; "c"; "use_iconv"] & A"-liconv";
         flag ["link"; "ocaml"; "use_iconv"] & S[A"-cclib"; A"-liconv"]
-      end
+      end;
+
+      (* Search for iconv.h in standard directories. *)
+      let rec loop = function
+        | [] ->
+            ()
+        | dir :: dirs ->
+            if Pathname.exists (dir ^ "/include/iconv.h") then begin
+              flag ["ocamlmklib"; "c"; "use_iconv"] & A("-L" ^ dir ^ "/lib");
+              flag ["c"; "compile"; "use_iconv"] & S[A"-ccopt"; A("-I" ^ dir ^ "/include")];
+              flag ["link"; "ocaml"; "use_iconv"] & S[A"-cclib"; A("-L" ^ dir ^ "/lib")]
+            end else
+              loop dirs
+      in
+      loop ["/usr"; "/usr/local"]
 
   | _ ->
       ()
