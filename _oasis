@@ -4,7 +4,7 @@
 
 OASISFormat: 0.1
 Name: ocaml-text
-Version: 0.3
+Version: 0.4
 LicenseFile: LICENSE
 License: BSD3
 Authors: Jérémie Dimino
