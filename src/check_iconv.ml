@@ -9,6 +9,16 @@
 
 (** Test whether linking with iconv recquires -liconv *)
 
+(* Keep that in sync with the list in myocamlbuild.ml *)
+let search_paths = [
+  "/usr";
+  "/usr/local";
+  "/opt";
+  "/opt/local";
+  "/sw";
+  "/mingw";
+]
+
 let stub_code = "
 #include <iconv.h>
 #include <caml/mlvalues.h>
@@ -42,7 +52,7 @@ let c_args =
         else
           loop dirs
   in
-  loop ["/usr"; "/usr/local"]
+  loop search_paths
 
 let compile stub_file caml_file args =
   Printf.ksprintf
@@ -69,7 +79,7 @@ let () =
   let args = [
     "-ocamlc", Arg.Set_string ocamlc, "<path> ocamlc";
     "-ext_obj", Arg.Set_string ext_obj, "<ext> C object files extension";
-    "-exec_name", Arg.Set_string exec_name, "<name> name of the executable produced by ocamlc";
+    "-exec-name", Arg.Set_string exec_name, "<name> name of the executable produced by ocamlc";
   ] in
   Arg.parse args ignore "check for the need of -liconv\noptions are:";
 

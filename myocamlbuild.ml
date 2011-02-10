@@ -1,3 +1,13 @@
+(* Keep that in sync with the list in src/check_iconv.ml *)
+let search_paths = [
+  "/usr";
+  "/usr/local";
+  "/opt";
+  "/opt/local";
+  "/sw";
+  "/mingw";
+]
+
 (* OASIS_START *)
 (* DO NOT EDIT (digest: 57d442fc143376898ea3250036016f41) *)
 module OASISGettext = struct
@@ -495,7 +505,7 @@ let my_dispatch = function
             end else
               loop dirs
       in
-      loop ["/usr"; "/usr/local"]
+      loop search_paths
 
   | _ ->
       ()
