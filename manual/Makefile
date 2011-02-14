@@ -3,8 +3,7 @@
 all: manual.pdf
 
 %.pdf: %.tex
-	pdflatex $<
-	pdflatex $<
+	rubber --pdf $<
 
 %.html: %.tex
 	hevea -fix manual.tex

@@ -13,6 +13,46 @@
 \usepackage[english]{babel}
 \usepackage{amsmath}
 \usepackage{amssymb}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{fullpage}
+
+%% +-----------------------------------------------------------------+
+%% | Configuration                                                   |
+%% +-----------------------------------------------------------------+
+
+\hypersetup{%
+  a4paper=true,
+  pdfstartview=FitH,
+  colorlinks=false,
+  pdfborder=0 0 0,
+  pdftitle = {OCaml-text user manual},
+  pdfauthor = {Jérémie Dimino},
+  pdfkeywords = {OCaml, Unicode}
+}
+
+\lstset{
+  language=[Objective]Caml,
+  extendedchars=\true,
+  inputencoding=utf8,
+  showspaces=false,
+  showstringspaces=false,
+  showtabs=false,
+  basicstyle=\ttfamily,
+  frame=l,
+  framerule=1.5mm,
+  xleftmargin=6mm,
+  framesep=4mm,
+  rulecolor=\color{lightgray},
+  moredelim=*[s][\itshape]{(*}{*)},
+  moredelim=[is][\textcolor{darkgray}]{§}{§},
+  escapechar=°,
+  keywordstyle=\color[rgb]{0.627451, 0.125490, 0.941176},
+  stringstyle=\color[rgb]{0.545098, 0.278431, 0.364706},
+  commentstyle=\color[rgb]{0.698039, 0.133333, 0.133333},
+  numberstyle=\color[rgb]{0.372549, 0.619608, 0.627451}
+}
 
 %% +-----------------------------------------------------------------+
 %% | Aliases                                                         |
@@ -66,9 +106,9 @@ Decoding means extracting a unicode character from a sequence of
 bytes. To decode text, the first thing to do is to create a decoder;
 this is done by the \texttt{Encoding.decoder} function:
 
-\begin{verbatim}
+\lstset{language=[Objective]Caml}\begin{lstlisting}
 val decoder : Encoding.t -> Encoding.decoder
-\end{verbatim}
+\end{lstlisting}
 
 The type \texttt{Encoding.t} is the type of character encoding. It is
 defined as an alias to the type string; in fact it is simply the name
@@ -78,9 +118,9 @@ of the character encoding, such as \texttt{``UTF-8''},
 The decoder allow you to decode characters, by using the decode
 function:
 
-\begin{verbatim}
+\lstset{language=[Objective]Caml}\begin{lstlisting}
 val decode : decoder -> string -> int -> int -> decoding_result
-\end{verbatim}
+\end{lstlisting}
 
 It takes as arguments:
 \begin{itemize}
@@ -105,15 +145,15 @@ Encoding means transforming a unicode character into a sequence of
 bytes, depending of the character encoding. Encoding characters works
 almost like decoding. The first things is to create a decoder with:
 
-\begin{verbatim}
+\lstset{language=[Objective]Caml}\begin{lstlisting}
 val encoder : Encoding.t -> Encoding.encoder
-\end{verbatim}
+\end{lstlisting}
 
 then, encoding is done by:
 
-\begin{verbatim}
+\lstset{language=[Objective]Caml}\begin{lstlisting}
 val encode : encoder -> string -> int -> int -> code_point -> encoding_result
-\end{verbatim}
+\end{lstlisting}
 
 Arguments have the same meaning that for decoding, except that the
 buffer will be written insteand of read. \texttt{encode} will write
@@ -145,22 +185,23 @@ locale settings.
 
 For example, consider the following program:
 
-\begin{verbatim}
+\lstset{language=[Objective]Caml}\begin{lstlisting}
 print_endline (Encoding.recode_string
                  ~src:"UTF-8"
                  ~dst:"ASCII//TRANSLIT"
-                 "Mon nom est Jérémie")
-\end{verbatim}
+                 "Mon nom est J\xc3\xa9r\xc3\xa9mie")
+\end{lstlisting}
 
-According to the current locale settings, the printing will be
+(where \texttt{c3a9} is the UTF-8 representation of
+``é''). According to the current locale settings, the printing will be
 different:
 
-\begin{verbatim}
+\lstset{language=bash}\begin{lstlisting}
 $ LANG=fr_FR.UTF-8 ./a.out
 Mon nom est Jeremie
 $ LANG=C ./a.out
 Mon nom est J?r?mie
-\end{verbatim}
+\end{lstlisting}
 
 The advantage of transliteration is that encoding text will never
 fail, and give an acceptable result.
@@ -198,10 +239,10 @@ it is the case.
 contains valid UTF-8 encoded text. This can be done with one of these
 two functions:
 
-\begin{verbatim}
+\lstset{language=[Objective]Caml}\begin{lstlisting}
 val check : string -> string option
 val validate : string -> unit
-\end{verbatim}
+\end{lstlisting}
 
 \texttt{Text.check} receive a string, and returns \texttt{Some error}
 if the given string does not contains valid UTF-8 encoded
@@ -210,7 +251,7 @@ the same thing but raises an exception instead of returning an option.
 
 For example:
 
-\begin{verbatim}
+\lstset{language=[Objective]Caml}\begin{lstlisting}
 # Text.check "Hello";;
 - : string option = None
 # Text.check "\xff";;
@@ -220,7 +261,7 @@ For example:
 # Text.validate "\xff";;
 Exception:
 Text.Invalid ("at offset 0: invalid start of UTF-8 sequence", "\255").
-\end{verbatim}
+\end{lstlisting}
 
 \subsection{Iteration}
 
@@ -234,7 +275,7 @@ Instead, \oct provides an API to iterate over a text by using pointers
 UTF-8 encoded unicode character in a text. You can create a pointer by
 using one of these three functions:
 
-\begin{verbatim}
+\lstset{language=[Objective]Caml}\begin{lstlisting}
 val pointer_l : t -> pointer
   (** Returns a pointer to the left of the given text *)
 
@@ -244,12 +285,12 @@ val pointer_r : t -> pointer
 val pointer_at : t -> int -> pointer
   (** [pointer_at txt n] returns a pointer to the character at
       position [n] in [txt]. *)
-\end{verbatim}
+\end{lstlisting}
 
 Once you have a pointer, you scan text to the right or left. Here is a
 simple example, where we scan the given text to find a character ``.'':
 
-\begin{verbatim}
+\lstset{language=[Objective]Caml}\begin{lstlisting}
 let search txt =
   let rec loop pointer =
     match Text.next pointer with
@@ -262,7 +303,7 @@ let search txt =
           loop pointer
   in
   loop (Text.pointer_l txt)
-\end{verbatim}
+\end{lstlisting}
 
 Each call to \texttt{Text.next} returns either \texttt{None} if the
 end of the text have been reached, or \texttt{Some(ch, pointer)} where:
@@ -291,9 +332,9 @@ If you are using \texttt{ocamlfind}, simply adds the ``text.pcre'' to
 the list of packages. For example, to compile a file ``foo.ml'' using
 the syntax extension, just type:
 
-\begin{verbatim}
+\lstset{language=[Objective]Caml}\begin{lstlisting}
 $ ocamlfind ocamlc -syntax camlp4o -package text.pcre -linkpkg -o foo foo.ml
-\end{verbatim}
+\end{lstlisting}
 
 \subsection{Syntax of regular expression}
 
@@ -366,18 +407,18 @@ and convert it to a string, following the syntax of PCRE.
 
 For example:
 
-\begin{verbatim}
+\lstset{language=[Objective]Caml}\begin{lstlisting}
 let re = Pcre.regexp <:re_text< "foo" _* "bar" >>
-\end{verbatim}
+\end{lstlisting}
 
 The goal of this quotation is to make regular expression more
 readable. The second quotation, ``\texttt{re}'' expands into a
 compiled regular expression, of type \texttt{Pcre.regexp}, for examples:
 
-\begin{verbatim}
+\lstset{language=[Objective]Caml}\begin{lstlisting}
 let re = <:re< "foo" _* "bar" >>
 let f str = Pcre.exec ~rex:<:re< "foo" _* "bar" >> str
-\end{verbatim}
+\end{lstlisting}
 
 Note that in both case, the regular expression will be compiled only
 one time. And in the second example, it will be compiled the first
@@ -389,21 +430,21 @@ pattern, and capture variables.
 
 Here is a simple example of what you can do:
 
-\begin{verbatim}
+\lstset{language=[Objective]Caml}\begin{lstlisting}
 let rec f = function
   | <:re< "foo" (_* as x) "bar" >> :: _ -> Some x
   | _ :: l -> f l
   | [] -> None
-\end{verbatim}
+\end{lstlisting}
 
 If is also possible to use several regular expressions in the same
 pattern:
 
-\begin{verbatim}
+\lstset{language=[Objective]Caml}\begin{lstlisting}
   match v with
     | <:re< "foo" (_* as x) "bar" >> :: <:re< "a"* " " "b"* >> :: _ -> ...
     ...
-\end{verbatim}
+\end{lstlisting}
 
 \subsection{Variables}
 
@@ -436,9 +477,9 @@ In addition, it defines the following variables:
 
 New variables can be defined by toplevel bindings. For instance:
 
-\begin{verbatim}
+\lstset{language=[Objective]Caml}\begin{lstlisting}
 let digit3 = <:re< ["0"-"9"]{3} >>
-\end{verbatim}
+\end{lstlisting}
 
 will generate the binding for the \texttt{digit3} variable and define
 the regexp variable \texttt{digit3} for the rest of the file.
@@ -473,47 +514,47 @@ lazy, which means the contrary.
 
 For example, consider the following function:
 
-\begin{verbatim}
+\lstset{language=[Objective]Caml}\begin{lstlisting}
 let f = function
   | <:re< "a"* as x >> -> Some x
   | _ -> None
-\end{verbatim}
+\end{lstlisting}
 
 if we apply it on $aaa$ we got:
 
-\begin{verbatim}
+\lstset{language=[Objective]Caml}\begin{lstlisting}
 $ f "aaa";;
 - : Text.t option = Some "aaa"
-\end{verbatim}
+\end{lstlisting}
 
 Now, if we make the matching $"a"*$ lazy:
 
-\begin{verbatim}
+\lstset{language=[Objective]Caml}\begin{lstlisting}
 let f = function
   | <:re< "a"*? as x >> -> Some x
   | _ -> None
-\end{verbatim}
+\end{lstlisting}
 
 we got:
 
-\begin{verbatim}
+\lstset{language=[Objective]Caml}\begin{lstlisting}
 $ f "aaa";;
 - : Text.t option = Some ""
-\end{verbatim}
+\end{lstlisting}
 
 Possessive prevents backtracking. For example, with:
 
-\begin{verbatim}
+\lstset{language=[Objective]Caml}\begin{lstlisting}
 let f = function
   | <:re< ("a"* as x) ("a" as y) >> -> Some(x, y)
   | _ -> None
-\end{verbatim}
+\end{lstlisting}
 
 we got:
 
-\begin{verbatim}
+\lstset{language=[Objective]Caml}\begin{lstlisting}
 $ f "aaa";;
 - : Text.t option = None
-\end{verbatim}
+\end{lstlisting}
 
 \end{document}
