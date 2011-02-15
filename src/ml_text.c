@@ -285,7 +285,8 @@ CAMLprim value ml_text_recode_string(value enc_src, value enc_dst, value str)
   };
 
   *dst_bytes = 0;
-  result = caml_copy_string(dst_buffer);
+  result = caml_alloc_string(dst_bytes - dst_buffer);
+  memcpy(String_val(result), dst_buffer, dst_bytes - dst_buffer);
 
   /* Clean-up */
   free(dst_buffer);
