@@ -16,8 +16,6 @@ Description:
   OCaml-Text is an OCaml library for dealing with "text",
   i.e. sequences of unicode characters, in a convenient way.
 FilesAB: src/META.ab
-PostConfCommand: ocaml src/check_iconv.ml -ocamlc $ocamlc -ext_obj $ext_obj -exec-name $default_executable_name
-PostDistCleanCommand: $rm need_liconv
 
 # +-------------------------------------------------------------------+
 # | Flags                                                             |

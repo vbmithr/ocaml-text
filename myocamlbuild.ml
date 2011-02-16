@@ -1,13 +1,3 @@
-(* Keep that in sync with the list in src/check_iconv.ml *)
-let search_paths = [
-  "/usr";
-  "/usr/local";
-  "/opt";
-  "/opt/local";
-  "/sw";
-  "/mingw";
-]
-
 (* OASIS_START *)
 (* DO NOT EDIT (digest: 57d442fc143376898ea3250036016f41) *)
 module OASISGettext = struct
@@ -488,24 +478,19 @@ let my_dispatch = function
       Options.make_links := false
 
   | After_rules ->
-      if Pathname.read "need_liconv" = "true" then begin
+      let env = BaseEnvLight.load () in
+
+      if BaseEnvLight.var_get "need_liconv" env = "true" then begin
         flag ["ocamlmklib"; "c"; "use_iconv"] & A"-liconv";
         flag ["link"; "ocaml"; "use_iconv"] & S[A"-cclib"; A"-liconv"]
       end;
 
-      (* Search for iconv.h in standard directories. *)
-      let rec loop = function
-        | [] ->
-            ()
-        | dir :: dirs ->
-            if Pathname.exists (dir ^ "/include/iconv.h") then begin
-              flag ["ocamlmklib"; "c"; "use_iconv"] & A("-L" ^ dir ^ "/lib");
-              flag ["c"; "compile"; "use_iconv"] & S[A"-ccopt"; A("-I" ^ dir ^ "/include")];
-              flag ["link"; "ocaml"; "use_iconv"] & S[A"-cclib"; A("-L" ^ dir ^ "/lib")]
-            end else
-              loop dirs
-      in
-      loop search_paths
+      let dir = BaseEnvLight.var_get "iconv_prefix" env in
+      if dir <> "" then begin
+        flag ["ocamlmklib"; "c"; "use_iconv"] & A("-L" ^ dir ^ "/lib");
+        flag ["c"; "compile"; "use_iconv"] & S[A"-ccopt"; A("-I" ^ dir ^ "/include")];
+        flag ["link"; "ocaml"; "use_iconv"] & S[A"-cclib"; A("-L" ^ dir ^ "/lib")]
+      end
 
   | _ ->
       ()
