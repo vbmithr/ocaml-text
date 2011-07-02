@@ -4,26 +4,4 @@
 <src/*>: use_iconv
 
 # OASIS_START
-# DO NOT EDIT (digest: d3f7f32e50241b022bf2178a2ddd4270)
-# Library text
-<src/text.{cma,cmxa}>: use_libtext
-# Executable test
-<tests/test.{native,byte}>: use_text
-<tests/*.ml{,i}>: use_text
-# Library text-bigarray
-<src/text-bigarray.{cma,cmxa}>: use_libtext-bigarray
-<src/*.ml{,i}>: pkg_bigarray
-"src/ml_text_bigarray.c": use_text
-"src/ml_text_bigarray.c": pkg_bigarray
-# Library text-pcre
-"src": include
-<src/*.ml{,i}>: use_text
-<src/*.ml{,i}>: pkg_pcre
-# Library text-pcre-syntax
-"syntax": include
-<syntax/*.ml{,i}>: use_text
-<syntax/*.ml{,i}>: pkg_camlp4.quotations.o
-<syntax/*.ml{,i}>: pkg_camlp4.lib
-<syntax/*.ml{,i}>: pkg_camlp4.extend
-<syntax/*.ml{,i}>: pkg_camlp4
 # OASIS_STOP

@@ -36,6 +36,9 @@ To build and install it just type:
 This will install the "text" package (ocamlfind is required), and the
 "text.pcre" if compiled with support for pcre.
 
+If you get the development version you must obtain oasis
+(http://oasis.forge.ocamlcore.org/).
+
 * Development
 
 The last development version of ocaml-text can always be found in the

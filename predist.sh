@@ -13,8 +13,5 @@ cd ..
 # Add OASIS stuff
 oasis setup
 
-# Make the configure script executable
-chmod +x configure
-
 # Cleanup
-rm -f predist.sh boring
+rm -f predist.sh boring dist.sh
