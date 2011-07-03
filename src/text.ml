@@ -825,7 +825,18 @@ let lchop = function
    | Upper/lower casing                                              |
    +-----------------------------------------------------------------+ *)
 
-let map_code f txt = map (fun ch -> char (f (code ch))) txt
+let rec map_code_rec f buf txt ofs =
+  if ofs = String.length txt then
+    Buffer.contents buf
+  else begin
+    let code, ofs = unsafe_extract_next txt ofs in
+    Buffer.add_string buf (char (f code));
+    map_code_rec f buf txt ofs
+  end
+
+let map_code f txt =
+  let buf = Buffer.create (String.length txt) in
+  map_code_rec f buf txt 0
 
 external ml_upper : int -> int = "ml_text_upper"
 external ml_lower : int -> int = "ml_text_lower"
@@ -836,9 +847,8 @@ let lower = map_code ml_lower
 let map_first_code f = function
   | "" -> ""
   | txt ->
-      let len = String.length txt in
-      let ptr = unsafe_next txt 0 in
-      char (f (code (unsafe_sub txt 0 ptr))) ^ unsafe_sub txt ptr (len - ptr)
+      let code, ofs = unsafe_extract_next txt 0 in
+      char (f code) ^ unsafe_sub txt ofs (String.length txt - ofs)
 
 let capitalize = map_first_code ml_upper
 let uncapitalize = map_first_code ml_lower
