@@ -48,7 +48,7 @@ let iconv_prefix =
   BaseEnv.var_define
     ~short_desc:(fun () -> "iconv installation prefix")
     "iconv_prefix"
-    (Lazy.lazy_from_fun search_iconv)
+    search_iconv
 
 (* +-----------------------------------------------------------------+
    | Test whether -liconv is needed or not                           |
@@ -136,6 +136,6 @@ let need_liconv =
   BaseEnv.var_define
     ~short_desc:(fun () -> "-liconv is needed")
     "need_liconv"
-    (Lazy.lazy_from_fun check_iconv)
+    check_iconv
 
 let () = setup ()
