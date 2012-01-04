@@ -63,7 +63,7 @@ Library "text-pcre-syntax"
     Pa_text_env,
     Pa_text_types,
     Pa_text_util
-  BuildDepends: text, camlp4, camlp4.lib, camlp4.quotations.o, camlp4.extend
+  BuildDepends: text, camlp4, camlp4.quotations.o, camlp4.extend
 
 # +-------------------------------------------------------------------+
 # | Doc                                                               |
