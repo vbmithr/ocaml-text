@@ -7,6 +7,13 @@
  * This file is a part of ocaml-text.
  *)
 
+(* OASIS_START *)
+(* DO NOT EDIT (digest: 7f47a529f70709161149c201ccd90f0b) *)
+#use "topfind";;
+#require "oasis.dynrun";;
+open OASISDynRun;;
+(* OASIS_STOP *)
+
 (* List of paths to search for iconv *)
 let search_paths = [
   "/usr";
@@ -17,16 +24,6 @@ let search_paths = [
   "/mingw";
   "/mingw/local";
 ]
-
-(* OASIS_START *)
-
-let () =
-  let command = Printf.sprintf "oasis setup-dev -run %s %s" Sys.executable_name (String.concat " " (Array.to_list Sys.argv)) in
-  Printf.eprintf "I: Running command '%s'\n%!" command;
-  exit (Sys.command command)
-;;
-
-(* OASIS_STOP *)
 
 (* +-----------------------------------------------------------------+
    | Search for iconv.h                                              |
@@ -72,7 +69,8 @@ let () = test ()
 
 let compile ocamlc log_file stub_file caml_file args =
   let result = ref false and dir = iconv_prefix () in
-  BaseExec.run
+  OASISExec.run
+    ~ctxt:(!OASISContext.default)
     ~f_exit_code:(fun x -> result := x = 0)
     ocamlc
     (List.flatten [
@@ -93,8 +91,11 @@ let safe_remove file_name =
   with exn ->
     ()
 
+let printf level msg =
+  !(OASISContext.default).OASISContext.printf level msg
+
 let check_iconv () =
-  OASISContext.printf `Info "Testing whether -liconv is needed";
+  printf `Info "Testing whether -liconv is needed";
 
   let ocamlc = BaseEnv.var_get "ocamlc"
   and ext_obj = BaseEnv.var_get "ext_obj"
@@ -127,7 +128,7 @@ let check_iconv () =
   else if compile ocamlc log_file stub_file caml_file ["-cclib"; "-liconv"] then
     "true"
   else begin
-    OASISContext.printf `Error "libiconv seems to be missing!";
+    printf `Error "libiconv seems to be missing!";
     exit 1
   end
 
