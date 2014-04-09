@@ -1,7 +1,0 @@
-(^|/)_build($|/)
-^manual/manual\.(aux|log|toc|pdf|out)$
-^ocaml-text-.*\.tar\.gz$
-^need_liconv$
-^src/META$
-^setup\.data$
-^setup\.log$
