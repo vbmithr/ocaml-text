@@ -2,20 +2,19 @@
 # | Package parameters                                                |
 # +-------------------------------------------------------------------+
 
-OASISFormat: 0.3
+OASISFormat: 0.4
 Name: ocaml-text
-Version: 0.6
+Version: 0.7
 LicenseFile: LICENSE
-License: BSD3
+License: BSD-3-clause
 Authors: Jérémie Dimino
 Homepage: http://ocaml-text.forge.ocamlcore.org/
 BuildTools: ocamlbuild
-Plugins: DevFiles (0.3)
+Plugins: META (0.4), DevFiles (0.4)
 Synopsis: ocaml-text
 Description:
   OCaml-Text is an OCaml library for dealing with "text",
   i.e. sequences of unicode characters, in a convenient way.
-FilesAB: src/META.ab
 
 # +-------------------------------------------------------------------+
 # | Flags                                                             |
@@ -35,7 +34,7 @@ Library text
   Modules: Text, Encoding
   CSources: ml_text.c, common.h
 
-Library "text-bigarray"
+Library "bigarray"
   Path: src
   Install: true
   FindlibParent: text
@@ -43,7 +42,7 @@ Library "text-bigarray"
   Modules: Encoding_bigarray
   CSources: ml_text_bigarray.c, common.h
 
-Library "text-pcre"
+Library "pcre"
   Path: src
   FindlibParent: text
   Build$: flag(pcre)
@@ -51,7 +50,7 @@ Library "text-pcre"
   Modules: Text_pcre
   BuildDepends: text, pcre
 
-Library "text-pcre-syntax"
+Library "pcre-syntax"
   Path: syntax
   FindlibParent: text
   Build$: flag(pcre)
@@ -69,18 +68,18 @@ Library "text-pcre-syntax"
 # | Doc                                                               |
 # +-------------------------------------------------------------------+
 
-Document "text-manual"
+Document "manual"
   Title: OCamlText user manual
-  Type: custom (0.3)
-  Install: true
+  Type: custom (0.4)
+  Install: false
   XCustom: make -C manual manual.pdf
   DataFiles: manual/manual.pdf
   InstallDir: $pdfdir
 
-Document "text-api"
+Document "api"
   Title: API reference for OCamlText
-  Type: ocamlbuild (0.3)
-  Install: true
+  Type: ocamlbuild (0.4)
+  Install: false
   InstallDir: $htmldir/api
   DataFiles: style.css
   BuildTools: ocamldoc
