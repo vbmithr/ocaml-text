@@ -12,6 +12,7 @@ Homepage: http://ocaml-text.forge.ocamlcore.org/
 BuildTools: ocamlbuild
 Plugins: META (0.4), DevFiles (0.4)
 Synopsis: ocaml-text
+AlphaFeatures: compiled_setup_ml
 Description:
   OCaml-Text is an OCaml library for dealing with "text",
   i.e. sequences of unicode characters, in a convenient way.
@@ -106,6 +107,6 @@ Test main
 # +-------------------------------------------------------------------+
 
 SourceRepository head
-  Type: darcs
-  Location: http://darcs.ocamlcore.org/repos/ocaml-text
-  Browser: http://darcs.ocamlcore.org/cgi-bin/darcsweb.cgi?r=ocaml-text;a=summary
+  Type: git
+  Location: git://github.com/vbmithr/ocaml-text
+  Browser: http://github.com/vbmithr/ocaml-text
