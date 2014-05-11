@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 52cd1021654a5f3d0481f8e72d2daff2)
+# DO NOT EDIT (digest: 7d039e7e35f4fea9f120eddf532b5c20)
 version = "0.7"
 description = "ocaml-text"
 archive(byte) = "text.cma"
@@ -9,12 +9,13 @@ archive(native, plugin) = "text.cmxs"
 exists_if = "text.cma"
 package "pcre-syntax" (
  version = "0.7"
- description = "ocaml-text"
- requires = "text camlp4 camlp4.quotations.o camlp4.extend"
- archive(byte) = "pcre-syntax.cma"
- archive(byte, plugin) = "pcre-syntax.cma"
- archive(native) = "pcre-syntax.cmxa"
- archive(native, plugin) = "pcre-syntax.cmxs"
+ description =
+ "Syntax extension for writing human readable regexps in OCaml sources"
+ requires = "camlp4 text"
+ archive(syntax, preprocessor) = "pcre-syntax.cma"
+ archive(syntax, toploop) = "pcre-syntax.cma"
+ archive(syntax, preprocessor, native) = "pcre-syntax.cmxa"
+ archive(syntax, preprocessor, native, plugin) = "pcre-syntax.cmxs"
  exists_if = "pcre-syntax.cma"
 )
 

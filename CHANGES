@@ -1,3 +1,8 @@
+===== 0.7.1 ====
+
+  * Use OASIS 0.4.x compiled_setup alpha feature
+  * Fixed _oasis file for the syntax extension
+
 ===== 0.7 =====
 
   * Switched to git and github

@@ -64,6 +64,9 @@ Library "pcre-syntax"
     Pa_text_types,
     Pa_text_util
   BuildDepends: text, camlp4, camlp4.quotations.o, camlp4.extend
+  XMETAType: syntax
+  XMETADescription: Syntax extension for writing human readable regexps in OCaml sources
+  XMETARequires: camlp4, text
 
 # +-------------------------------------------------------------------+
 # | Doc                                                               |
