@@ -107,7 +107,7 @@ CAMLprim value ml_text_decode(value cd_val, value buf_val, value pos_val, value 
 {
   CAMLparam4(cd_val, buf_val, pos_val, len_val);
 
-  uint32 code;
+  uint32_t code;
   size_t len = Long_val(len_val);
   size_t in_left = len;
   char *in_bytes = String_val(buf_val) + Long_val(pos_val);
@@ -152,7 +152,7 @@ CAMLprim value ml_text_encode(value cd_val, value buf_val, value pos_val, value 
 {
   CAMLparam5(cd_val, buf_val, pos_val, len_val, code_val);
 
-  uint32 code = Int_val(code_val);
+  uint32_t code = Int_val(code_val);
   size_t len = Long_val(len_val);
   size_t in_left = 4;
   char *in_bytes = (char*)&code;
