@@ -1,7 +1,8 @@
 # OASIS_START
-# DO NOT EDIT (digest: 7d039e7e35f4fea9f120eddf532b5c20)
+# DO NOT EDIT (digest: 73eda264e5285750a38263859be858c4)
 version = "0.7"
 description = "ocaml-text"
+requires = "bytes"
 archive(byte) = "text.cma"
 archive(byte, plugin) = "text.cma"
 archive(native) = "text.cmxa"

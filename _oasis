@@ -32,6 +32,7 @@ Flag pcre
 Library text
   Path: src
   Install: true
+  BuildDepends: bytes
   Modules: Text, Encoding
   CSources: ml_text.c, common.h
 

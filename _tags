@@ -4,10 +4,11 @@
 <src/*>: use_iconv
 
 # OASIS_START
-# DO NOT EDIT (digest: d50f1b05b7e5413b67a11bc53bca8e69)
+# DO NOT EDIT (digest: 4e0f9df4e481ad80c07cec09691a505f)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
+true: annot, bin_annot
 <**/.svn>: -traverse
 <**/.svn>: not_hygienic
 ".bzr": -traverse
@@ -21,23 +22,29 @@
 # Library text
 "src/text.cmxs": use_text
 <src/text.{cma,cmxa}>: use_libtext_stubs
+"src/ml_text.c": pkg_bytes
 # Library bigarray
 "src/bigarray.cmxs": use_bigarray
 <src/bigarray.{cma,cmxa}>: use_libbigarray_stubs
-<src/*.ml{,i}>: pkg_bigarray
+<src/*.ml{,i,y}>: pkg_bigarray
 "src/ml_text_bigarray.c": pkg_bigarray
+"src/ml_text_bigarray.c": pkg_bytes
 "src/ml_text_bigarray.c": use_text
 # Library pcre
 "src/pcre.cmxs": use_pcre
-<src/*.ml{,i}>: pkg_pcre
-<src/*.ml{,i}>: use_text
+<src/*.ml{,i,y}>: pkg_bytes
+<src/*.ml{,i,y}>: pkg_pcre
+<src/*.ml{,i,y}>: use_text
 # Library pcre-syntax
 "syntax/pcre-syntax.cmxs": use_pcre-syntax
-<syntax/*.ml{,i}>: pkg_camlp4
-<syntax/*.ml{,i}>: pkg_camlp4.extend
-<syntax/*.ml{,i}>: pkg_camlp4.quotations.o
-<syntax/*.ml{,i}>: use_text
+<syntax/*.ml{,i,y}>: pkg_bytes
+<syntax/*.ml{,i,y}>: pkg_camlp4
+<syntax/*.ml{,i,y}>: pkg_camlp4.extend
+<syntax/*.ml{,i,y}>: pkg_camlp4.quotations.o
+<syntax/*.ml{,i,y}>: use_text
 # Executable test
+<tests/test.{native,byte}>: pkg_bytes
 <tests/test.{native,byte}>: use_text
-<tests/*.ml{,i}>: use_text
+<tests/*.ml{,i,y}>: pkg_bytes
+<tests/*.ml{,i,y}>: use_text
 # OASIS_STOP
