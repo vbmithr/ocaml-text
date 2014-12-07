@@ -17,12 +17,12 @@ let fail str pos msg = raise (Invalid(Printf.sprintf "at position %d: %s" pos ms
    +-----------------------------------------------------------------+ *)
 
 let byte str i = Char.code (String.unsafe_get str i)
-let set_byte str i n = String.unsafe_set str i (Char.unsafe_chr n)
+let set_byte str i n = Bytes.unsafe_set str i (Char.unsafe_chr n)
 
 let unsafe_sub str ofs len =
-  let res = String.create len in
+  let res = Bytes.create len in
   String.unsafe_blit str ofs res 0 len;
-  res
+  Bytes.unsafe_to_string res
 
 (* +-----------------------------------------------------------------+
    | UTF-8 validation                                                |
@@ -330,27 +330,27 @@ let char code =
   if code < 0 then
     invalid_arg "Text.char"
   else if code < 0x80 then begin
-    let s = String.create 1 in
+    let s = Bytes.create 1 in
     set_byte s 0 code;
-    s
+    Bytes.unsafe_to_string s
   end else if code <= 0x800 then begin
-    let s = String.create 2 in
+    let s = Bytes.create 2 in
     set_byte s 0 ((code lsr 6) lor 0xc0);
     set_byte s 1 ((code land 0x3f) lor 0x80);
-    s
+    Bytes.unsafe_to_string s
   end else if code <= 0x10000 then begin
-    let s = String.create 3 in
+    let s = Bytes.create 3 in
     set_byte s 0 ((code lsr 12) lor 0xe0);
     set_byte s 1 (((code lsr 6) land 0x3f) lor 0x80);
     set_byte s 2 ((code land 0x3f) lor 0x80);
-    s
+    Bytes.unsafe_to_string s
   end else if code <= 0x10ffff then begin
-    let s = String.create 4 in
+    let s = Bytes.create 4 in
     set_byte s 0 ((code lsr 18) lor 0xf0);
     set_byte s 1 (((code lsr 12) land 0x3f) lor 0x80);
     set_byte s 2 (((code lsr 6) land 0x3f) lor 0x80);
     set_byte s 3 ((code land 0x3f) lor 0x80);
-    s
+    Bytes.unsafe_to_string s
   end else
     invalid_arg "Text.char"
 
@@ -382,22 +382,22 @@ let splice txt a b repl =
   if a > b then
     invalid_arg "Text.slice"
   else begin
-    let res = String.create (a + String.length repl + String.length txt - b) in
+    let res = Bytes.create (a + String.length repl + String.length txt - b) in
     String.unsafe_blit txt 0 res 0 a;
     String.unsafe_blit repl 0 res a (String.length repl);
     String.unsafe_blit txt b res (a + String.length repl) (String.length txt - b);
-    res
+    Bytes.unsafe_to_string res
   end
 
 let repeat n txt =
   let len = String.length txt in
-  let res = String.create (n * len) in
+  let res = Bytes.create (n * len) in
   let ofs = ref 0 in
   for i = 1 to n do
     String.unsafe_blit txt 0 res !ofs len;
     ofs := !ofs + len
   done;
-  res
+  Bytes.unsafe_to_string res
 
 let rec iter_rec f txt ofs =
   if ofs <> String.length txt then begin
@@ -420,7 +420,7 @@ let rev_iter f txt = rev_iter_rec f txt (String.length txt)
 let rev txt =
   let len = String.length txt in
   let ofs_src = ref len and ofs_dst = ref 0 in
-  let res = String.create len in
+  let res = Bytes.create len in
   while !ofs_src > 0 do
     let ofs = unsafe_prev txt !ofs_src in
     let len = !ofs_src - ofs in
@@ -428,7 +428,7 @@ let rev txt =
     ofs_src := ofs;
     ofs_dst := !ofs_dst + len
   done;
-  res
+  Bytes.unsafe_to_string res
 
 let init n f =
   let buf = Buffer.create n in
@@ -452,7 +452,7 @@ let concat sep l =
     | x :: l ->
         let sep_len = String.length sep in
         let len = List.fold_left (fun len str -> len + sep_len + String.length str) (String.length x) l in
-        let res = String.create len in
+        let res = Bytes.create len in
         String.unsafe_blit x 0 res 0 (String.length x);
         ignore
           (List.fold_left
@@ -463,7 +463,7 @@ let concat sep l =
                 String.unsafe_blit str 0 res ofs len;
                 ofs + len)
              (String.length x) l);
-        res
+        Bytes.unsafe_to_string res
 
 let rev_concat sep l =
   match l with
@@ -472,7 +472,7 @@ let rev_concat sep l =
     | x :: l ->
         let sep_len = String.length sep in
         let len = List.fold_left (fun len str -> len + sep_len + String.length str) (String.length x) l in
-        let res = String.create len in
+        let res = Bytes.create len in
         let ofs = len - String.length x in
         String.unsafe_blit x 0 res ofs (String.length x);
         ignore
@@ -485,7 +485,7 @@ let rev_concat sep l =
                 String.unsafe_blit str 0 res ofs len;
                 ofs)
              ofs l);
-        res
+        Bytes.unsafe_to_string res
 
 let explode txt =
   let l = ref [] in
