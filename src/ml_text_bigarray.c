@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <iconv.h>
 #include <string.h>
+#include <stdint.h>
 
 #include <caml/bigarray.h>
 #include <caml/alloc.h>

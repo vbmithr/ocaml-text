@@ -15,6 +15,7 @@
 #include <strings.h>
 #include <wctype.h>
 #include <stdio.h>
+#include <stdint.h>
 
 #include <caml/alloc.h>
 #include <caml/memory.h>
