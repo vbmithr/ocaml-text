@@ -25,6 +25,10 @@ Flag pcre
   Description: support for pcre
   Default: false
 
+Flag camlp4
+  Description: support for camlp4
+  Default: false
+
 # +-------------------------------------------------------------------+
 # | Libraries                                                         |
 # +-------------------------------------------------------------------+
@@ -55,8 +59,8 @@ Library "pcre"
 Library "pcre-syntax"
   Path: syntax
   FindlibParent: text
-  Build$: flag(pcre)
-  Install$: flag(pcre)
+  Build$: flag(pcre) && flag(camlp4)
+  Install$: flag(pcre) && flag(camlp4)
   InternalModules:
     Pa_text_main,
     Pa_text_parse,

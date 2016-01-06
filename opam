@@ -2,10 +2,10 @@ opam-version: "1.2"
 name: "text"
 maintainer: "vb@luminar.eu.org"
 build: [
-  ["./configure" "--%{pcre:enable}%-pcre"]
+  ["./configure" "--%{pcre:enable}%-pcre" "--%{camlp4:enable}%-camlp4"]
   [make]
   [make "install"]
 ]
 remove: [["ocamlfind" "remove" "text"]]
 depends: ["ocamlfind" {build} "base-bytes"]
-depopts: ["pcre"]
+depopts: ["pcre" "camlp4"]
