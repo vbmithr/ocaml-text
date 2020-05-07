@@ -1,0 +1,30 @@
+opam-version: "2.0"
+maintainer: "vb@luminar.eu.org"
+authors: "Jérémie Dimino"
+homepage: "https://github.com/vbmithr/ocaml-text"
+bug-reports: "https://github.com/vbmithr/ocaml-text/issues"
+build: [
+  [make "setup.exe"]
+  ["./setup.exe" "-configure" "--%{pcre:enable}%-pcre" "--%{camlp4:enable}%-camlp4"]
+  [make]
+]
+install: [make "install"]
+remove: [["ocamlfind" "remove" "text"]]
+depends: [
+  "ocaml"
+  "ocamlfind" {build}
+  "base-bytes"
+  "ocamlbuild" {build}
+]
+depopts: ["pcre" "camlp4"]
+dev-repo: "git+https://github.com/vbmithr/ocaml-text"
+doc: "https://vbmithr.github.io/ocaml-text/doc"
+synopsis:
+    "Library for dealing with \"text\", i.e. sequence of unicode characters, in a convenient way"
+description:"""It supports:
+  - character encoding/decoding using iconv
+  - manipulation of text as UTF-8 encoded strings
+  - localised text functions such as compare, upper, ...
+  - human readable regular expression inside patterns
+"""
+flags: light-uninstall

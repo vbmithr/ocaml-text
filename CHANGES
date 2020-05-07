@@ -1,43 +1,60 @@
-===== 0.7.1 ====
+0.8.1 (2020-05-07) Paris
+------------------------
 
-  * Use OASIS 0.4.x compiled_setup alpha feature
-  * Fixed _oasis file for the syntax extension
+- make camlp4 optional
 
-===== 0.7 =====
+0.8 (2014-12-07)
+----------------
 
-  * Switched to git and github
-  * Using OASIS 0.4.x
+- safe_string
 
-===== 0.6 =====
+0.7.1 (2014-05-11)
+------------------
 
-  * Update for latest oasis
+- Use OASIS 0.4.x compiled_setup alpha feature
+- Fixed _oasis file for the syntax extension
 
-===== 0.5 =====
+0.7 (2014-04-09)
+----------------
 
-  * use more search pathes for iconv
-  * fix a bug in Encoding.recode_string
-  * several optimizations for the Text module
+- Switched to git and github
+- Using OASIS 0.4.x
 
-===== 0.4 =====
+0.6 (2012-07-16)
+----------------
 
-  * Fix a bug in regular expression generation for PCRE
-  * Adding the function Text.transform
-  * Adding the module Encoding_bigarray for encoding/decoding
+- Update for latest oasis
+
+0.5 (2011-07-04)
+----------------
+
+- use more search pathes for iconv
+- fix a bug in Encoding.recode_string
+- several optimizations for the Text module
+
+0.4 (2010-12-09)
+----------------
+
+- Fix a bug in regular expression generation for PCRE
+- Adding the function Text.transform
+- Adding the module Encoding_bigarray for encoding/decoding
     to/from bigarrays instead of strings
-  * Automatically detect whether -liconv is needed or not
+- Automatically detect whether -liconv is needed or not
 
-===== 0.3 =====
+0.3 (2010-02-08)
+----------------
 
-  * Adding a user manual
-  * Adding support for regular expressions inside arbitrary pattern
-    matching
-  * Adding a syntax extension for converting human readable regular
+- Adding a user manual
+- Adding support for regular expressions inside arbitrary pattern
+  matching
+- Adding a syntax extension for converting human readable regular
     expressions over UTF-8 strings into PCRE ones
-  * Faster reimplementation of Encoding.recode_string.
+- Faster reimplementation of Encoding.recode_string.
     (note: the ?fallback argument have been removed, use //TRANSLIT instead)
-  * Text.encode use transliteration instead of a fallback string
-  * Fixing various bugs in the module Text (thanks to unit tests)
-  * Adding unit tests
-  * Adding support for windows (using GetACP instead of nl_langinfo)
+- Text.encode use transliteration instead of a fallback string
+- Fixing various bugs in the module Text (thanks to unit tests)
+- Adding unit tests
+- Adding support for windows (using GetACP instead of nl_langinfo)
 
-===== 0.2 =====
+0.2 (2009-05-04)
+----------------
