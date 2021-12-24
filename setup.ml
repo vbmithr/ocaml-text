@@ -7287,6 +7287,8 @@ let setup () = BaseSetup.setup setup_t;;
 
 (* List of paths to search for iconv *)
 let search_paths = [
+  "/usr/include/x86_64-linux-musl/"; (* Debian *)
+  "/usr/x86_64-linux-musl/";         (* RedHat *)
   "/usr";
   "/usr/local";
   "/opt";
