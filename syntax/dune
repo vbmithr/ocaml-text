@@ -1,0 +1,10 @@
+(library
+ (name pa_ff)
+ (public_name text.pcre-syntax)
+ (preprocess
+  (per_module
+   ((action
+     (run camlp4o %{input-file}))
+    pa_text_main
+    pa_text_parse)))
+ (libraries text camlp4))

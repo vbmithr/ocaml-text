@@ -169,7 +169,7 @@ let rec negate = function
   | Alternatives _ -> None
   | Charset(cs, state) -> Some(charset cs (not state))
   | Posix(name, state) -> Some(posix name (not state))
-  | Meta(a, None) -> None
+  | Meta(_, None) -> None
   | Meta(a, Some b) -> Some(meta b (Some a))
   | Backward_reference _ -> None
   | Mode _ -> None
@@ -287,18 +287,18 @@ let of_parse_tree ~env ~parse_tree =
     | P.Condition(loc, id, r_then, Some r_else) -> begin
         try
           let vars, n, r_then = loop vars n r_then in
-          let vars, n, r_else = loop vars n r_else in
+          let vars, n, _ = loop vars n r_else in
           (vars, n, condition (Pa_text_env.find id vars) r_then None)
         with Not_found ->
           Loc.raise loc (Failure "invalid backward reference")
       end
-    | P.Mode(loc, mode, state) ->
+    | P.Mode(_, mode, state) ->
         (vars, n, Ast.mode mode state)
     | P.Look(_, dir, r, state) ->
         let vars, n, r = loop vars n r in
         (vars, n, look dir r state)
   in
-  let vars, n, re = loop Pa_text_env.empty 1 parse_tree in
+  let _, _, re = loop Pa_text_env.empty 1 parse_tree in
   re
 
 (* +-----------------------------------------------------------------+
@@ -422,7 +422,7 @@ let to_string re =
         add "[[:^";
         add name;
         add ":]]"
-    | Meta(t, nt) ->
+    | Meta(t, _) ->
         add t
     | Backward_reference n ->
         add "\\g{";
