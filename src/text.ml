@@ -89,10 +89,6 @@ let check s =
   in
   main 0
 
-let invalid str = match check str with
-  | None -> raise (Invalid("", str))
-  | Some msg -> raise (Invalid(msg, str))
-
 let validate str = match check str with
   | None -> ()
   | Some msg -> raise (Invalid(msg, str))
@@ -393,7 +389,7 @@ let repeat n txt =
   let len = String.length txt in
   let res = Bytes.create (n * len) in
   let ofs = ref 0 in
-  for i = 1 to n do
+  for _ = 1 to n do
     String.unsafe_blit txt 0 res !ofs len;
     ofs := !ofs + len
   done;
@@ -630,14 +626,14 @@ let lines txt =
           begin match next ptr' with
             | Some("\n", ptr') ->
                 chunk start_ptr ptr :: loop ptr' ptr'
-            | Some(ch, ptr') ->
+            | Some(_, ptr') ->
                 loop start_ptr ptr'
             | None ->
                 match chunk start_ptr ptr with
                   | "" -> []
                   | t -> [t]
           end
-      | Some(ch, ptr) ->
+      | Some(_, ptr) ->
           loop start_ptr ptr
       | None ->
           match chunk start_ptr ptr with

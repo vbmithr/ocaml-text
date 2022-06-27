@@ -11,10 +11,8 @@ build: [
 install: [make "install"]
 remove: [["ocamlfind" "remove" "text"]]
 depends: [
-  "ocaml"
-  "ocamlfind" {build}
-  "base-bytes"
-  "ocamlbuild" {build}
+  "ocaml" {>= "4.03"}
+  "dune" {>= "2.0"}
 ]
 depopts: ["pcre" "camlp4"]
 dev-repo: "git+https://github.com/vbmithr/ocaml-text"

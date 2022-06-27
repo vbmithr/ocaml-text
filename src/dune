@@ -1,0 +1,6 @@
+(library
+  (name text)
+  (public_name text)
+  (foreign_stubs
+    (language c)
+    (names ml_text)))

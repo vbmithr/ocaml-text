@@ -50,7 +50,7 @@ let equal a b =
       true
     else if end_of_a || end_of_b then
       false
-    else if Char.lowercase a.[i] = Char.lowercase b.[i] then
+    else if Char.lowercase_ascii a.[i] = Char.lowercase_ascii b.[i] then
       loop (i + 1)
     else
       false
