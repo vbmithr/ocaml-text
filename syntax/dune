@@ -1,0 +1,4 @@
+(library
+  (name pa_ff)
+  (public_name text.pcre-syntax)
+  (libraries text camlp4))

@@ -1,6 +1,12 @@
 (library
-  (name text)
-  (public_name text)
-  (foreign_stubs
-    (language c)
-    (names ml_text)))
+ (name text)
+ (public_name text)
+ (modules encoding text)
+ (foreign_stubs
+  (language c)
+  (names ml_text ml_text_bigarray)))
+
+(library
+  (name text_bigarray)
+  (public_name text.bigarray)
+  (modules))
