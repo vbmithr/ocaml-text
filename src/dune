@@ -7,6 +7,6 @@
   (names ml_text ml_text_bigarray)))
 
 (library
-  (name text_bigarray)
-  (public_name text.bigarray)
-  (modules))
+ (name text_bigarray)
+ (public_name text.bigarray)
+ (modules))

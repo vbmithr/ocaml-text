@@ -1,4 +1,4 @@
 (library
-  (name text_pcre)
-  (public_name text.pcre)
-  (libraries text pcre))
+ (name text_pcre)
+ (public_name text.pcre)
+ (libraries text pcre))
